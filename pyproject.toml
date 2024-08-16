@@ -9,7 +9,7 @@ description = "Pro test fixture configurator"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
-keywords = []
+keywords = ["test", "fixture", "spec", "specification", "teardown"]
 authors = [
   { name = "Ikram Khan", email = "ikramkhanfahim@gmail.com" },
 ]
@@ -28,7 +28,7 @@ dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/Grimmscorpp/protestr"
-Documentation = "https://github.com/Grimmscorpp/protestr#readme-ov-file"
+Documentation = "https://github.com/Grimmscorpp/protestr?tab=readme-ov-file#documentation"
 Issues = "https://github.com/Grimmscorpp/protestr/issues"
 Source = "https://github.com/Grimmscorpp/protestr"
 
