@@ -1,63 +1,108 @@
 import unittest
-from protestr import resolve
-from protestr.specs import between, either, subset, sequence
-from random import random
-from types import GeneratorType
+from unittest.mock import Mock, patch, call
+from string import ascii_letters
+from protestr import provide, resolve
+from protestr.specs import between, single, permutation
 
 
 class TestResolver(unittest.TestCase):
-    def test_resolve(self):
-        intgr = resolve(int)
-        assert isinstance(intgr, int)
-        assert 0 <= intgr <= 1000
+    @provide(x=between(0, 1000))
+    @patch("protestr._resolver.randint")
+    def test_resolve_int(self, randint, x):
+        randint.side_effect = [x]
 
-        real = resolve(float)
-        assert isinstance(real, float)
-        assert 0 <= real <= 1000
+        self.assertEqual(resolve(int), x)
 
-        complx = resolve(complex)
-        assert isinstance(complx, complex)
-        assert -1000 <= complx.real <= 1000
-        assert -1000 <= complx.imag <= 1000
+        randint.assert_called_once_with(0, 1000)
 
-        booln = resolve(bool)
-        assert isinstance(booln, bool)
-        assert booln in (True, False)
+    @provide(x=between(0.0, 1000))
+    @patch("protestr._resolver.uniform")
+    def test_resolve_float(self, uniform, x):
+        uniform.side_effect = [x]
 
-        word = resolve(str)
-        assert all("a" <= c <= "z" or "A" <= c <= "Z" for c in word)
+        self.assertEqual(resolve(float), x)
 
-        intgr = resolve(between(-20, 20))
-        assert isinstance(intgr, int)
-        assert -20 <= intgr <= 20
+        uniform.assert_called_once_with(0, 1000)
 
-        real = resolve(between(-20.0, 20))
-        assert isinstance(real, float)
-        assert -20 <= real <= 20
+    @provide(
+        x=between(-1000.0, 1000),
+        y=between(-1000.0, 1000)
+    )
+    @patch("protestr._resolver.uniform")
+    def test_resolve_complex(self, uniform, x, y):
+        uniform.side_effect = [x, y]
 
-        assert 0 <= resolve(either(*range(3))) < 3
-        sub = resolve(subset(range(3), n=2))
-        assert len(sub) == 2
-        assert all(x in range(3) for x in sub)
+        self.assertEqual(resolve(complex), complex(x, y))
 
-        seq = resolve(sequence(int, 3))
-        assert isinstance(seq, GeneratorType)
-        assert len(tuple(seq)) == 3
-        assert all(isinstance(x, int) for x in seq)
+        self.assertEqual(
+            uniform.mock_calls, [
+                call(-1000, 1000),
+                call(-1000, 1000)
+            ]
+        )
 
-        seq = resolve(sequence(int, 3, type=tuple))
-        assert isinstance(seq, tuple)
-        assert len(seq) == 3
-        assert all(isinstance(x, int) for x in seq)
+    @provide(x=single(True, False))
+    @patch("protestr._resolver.choice")
+    def test_resolve_bool(self, choice, x):
+        choice.side_effect = [x]
 
-        dictnry = resolve(dict(key=str))
-        assert isinstance(dictnry, dict)
-        assert len(dictnry) == 1
-        assert isinstance(dictnry["key"], str)
+        self.assertEqual(resolve(bool), x)
 
-        assert resolve(random) < 1
+        choice.assert_called_once_with((True, False))
 
-        assert resolve("lit") == "lit"
+    @provide(x=permutation(ascii_letters, k=len(ascii_letters)), k=int)
+    @patch("protestr._resolver.randint")
+    @patch("protestr._resolver.choices")
+    def test_resolve_str(self, choices, randint, x, k):
+        choices.side_effect = [[*x]]
+        randint.side_effect = [k]
+
+        self.assertEqual(resolve(str), "".join(x))
+
+        choices.assert_called_once_with(ascii_letters, k=k)
+        randint.assert_called_once_with(1, 50)
+
+    @provide(n=between(1, 10), x=int)
+    def test_resolve_tuple(self, n, x):
+        self.assertEqual(
+            resolve(n * tuple([between(x, x)])),
+            n * (x,)
+        )
+
+    @provide(n=between(1, 10), x=int)
+    def test_resolve_list(self, n, x):
+        self.assertEqual(
+            resolve(n * [between(x, x)]),
+            n * [x]
+        )
+
+    @provide(x=int)
+    def test_resolve_set(self, x):
+        self.assertEqual(
+            resolve({
+                between(x, x),
+                between(x + 1, x + 1),
+                between(x + 2, x + 2)
+            }),
+            {x, x + 1, x + 2}
+        )
+
+    @provide(key=int, val=int)
+    def test_resolve_dict(self, key, val):
+        self.assertEqual(
+            resolve({
+                between(key, key): between(val, val)
+            }),
+            {key: val}
+        )
+
+    @provide(x=int)
+    def test_resolve_callable(self, x):
+        mock = Mock(return_value=x)
+
+        self.assertEqual(resolve(mock), x)
+
+        mock.assert_called_once_with()
 
 
 if __name__ == "__main__":
