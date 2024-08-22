@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch, call
 from protestr import provide, resolve
-from protestr.specs import single, permutation, merged
+from protestr.specs import choice, choices
 from string import (
     ascii_lowercase, ascii_uppercase, ascii_letters, digits
 )
@@ -14,7 +14,7 @@ class TestExample(unittest.TestCase):
         user=specs.user
     )
     def test_insert_user_with_existing_username_fails(self, db, user):
-        user.username = resolve(single(db.users)).username
+        user.username = resolve(choice(db.users)).username
 
         try:
             db.insert(user)
@@ -29,8 +29,8 @@ class TestExample(unittest.TestCase):
     @provide(
         db=specs.testdb,
         user=specs.user,
-        shortpass=permutation(str, k=7),
-        longpass=permutation(str, k=16)
+        shortpass=choices(str, k=7),
+        longpass=choices(str, k=16)
     )
     @patch("tests.example.fakes.getenv")
     def test_insert_user_with_invalid_password_lengths_fails(
@@ -61,7 +61,7 @@ class TestExample(unittest.TestCase):
     @provide(
         db=specs.testdb,
         user=specs.user,
-        letters_only=permutation(ascii_letters, k=8)
+        letters_only=choices(ascii_letters, k=8)
     )
     @patch("tests.example.fakes.getenv")
     def test_insert_user_with_no_digits_in_password_fails(
@@ -89,20 +89,17 @@ class TestExample(unittest.TestCase):
     @provide(
         db=specs.testdb,
         user=specs.user,
-        digits_and_lowercase=merged(
-            permutation(digits, k=5),
-            permutation(ascii_lowercase, k=5),
-            func="".join
-        )
+        digits=choices(digits, k=5),
+        lowercase=choices(ascii_lowercase, k=5)
     )
     @patch("tests.example.fakes.getenv")
     def test_insert_user_with_no_uppercase_in_password_fails(
-        self, getenv, db, user, digits_and_lowercase
+        self, getenv, db, user, digits, lowercase
     ):
         getenv.side_effect = lambda env: \
             8 if env == "MIN_PASSWORD_LEN" else 15
 
-        user.password = digits_and_lowercase
+        user.password = digits + lowercase
 
         try:
             db.insert(user)
@@ -121,20 +118,17 @@ class TestExample(unittest.TestCase):
     @provide(
         db=specs.testdb,
         user=specs.user,
-        digits_and_uppercase=merged(
-            permutation(digits, k=5),
-            permutation(ascii_uppercase, k=5),
-            func="".join
-        )
+        digits=choices(digits, k=5),
+        uppercase=choices(ascii_uppercase, k=5)
     )
     @patch("tests.example.fakes.getenv")
     def test_insert_user_with_no_lowercase_in_password_fails(
-        self, getenv, db, user, digits_and_uppercase
+        self, getenv, db, user, digits, uppercase
     ):
         getenv.side_effect = lambda env: \
             8 if env == "MIN_PASSWORD_LEN" else 15
 
-        user.password = digits_and_uppercase
+        user.password = digits + uppercase
 
         try:
             db.insert(user)
