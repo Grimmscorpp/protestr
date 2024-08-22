@@ -118,9 +118,9 @@ following ways:
    ('north pole', -140.1178603399875, 431.79874634752593)
    ```
 
-   Although it's unnecessary to pass sample to choice, the example above
-   demonstrates that passing intact specs to one another is perfectly
-   okay.
+   Although it's unnecessary to pass `sample` to `choice`, the example
+   above demonstrates that passing intact specs to one another is
+   perfectly okay.
 
 1. Resolve with `resolve`:
 
@@ -302,7 +302,7 @@ that evaluates to some iterable.
 $\large \color{gray}protestr.specs.\color{black}\textbf{sample(*elems, k)}$
 
 Returns a spec to choose `k` members from `elems` without replacement,
-where `k` and `elements` are specs that evaluate to some natural number
+where `k` and `elems` are specs that evaluate to some natural number
 and collection, respectively.
 
 ```pycon
@@ -325,7 +325,7 @@ and collection, respectively.
 $\large \color{gray}protestr.specs.\color{black}\textbf{choices(*elems, k)}$
 
 Returns a spec to choose `k` members from `elems` with replacement,
-where `k` and `elements` are specs that evaluate to some natural number
+where `k` and `elems` are specs that evaluate to some natural number
 and collection, respectively. It's usage is similar to `sample`.
 
 ```pycon
