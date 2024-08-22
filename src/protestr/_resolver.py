@@ -1,4 +1,6 @@
-from random import randint, uniform, choice, choices
+from random import (
+    randint, uniform, choice as randchoice, choices as randchoices
+)
 from string import ascii_letters
 
 
@@ -16,10 +18,10 @@ def resolve(spec):
         )
 
     if spec is bool:
-        return choice((True, False))
+        return randchoice((True, False))
 
     if spec is str:
-        return "".join(choices(ascii_letters, k=randint(1, 50)))
+        return "".join(randchoices(ascii_letters, k=randint(1, 50)))
 
     if isinstance(spec, tuple):
         return tuple(resolve(x) for x in spec)

@@ -87,40 +87,40 @@ following ways:
 
    ```pycon
    >>> geo_coord(
-   ...     lat=single("equator", "north pole", "south pole"),
+   ...     lat=choice("equator", "north pole", "south pole"),
    ...     alt=int
    ... )
    ('north pole', -107.37336459941672, 581)
    ```
 
-   Here, `lat` and `alt` have been overridden with `single` (a built-in
+   Here, `lat` and `alt` have been overridden with `choice` (a built-in
    spec) and `int`. Generally, specs created with `provide()` can be
    passed any spec to override defaults as long as they are passed
    intact. Consider the following incorrect approach:
 
    ```pycon
    >>> geo_coord(
-   ...     lat=str(single("equator", "north pole", "south pole")) # ❌
+   ...     lat=str(choice("equator", "north pole", "south pole")) # ❌
    ... )
    ('<function[TRIMMED]98AF80>', -126.77844430204937, 678.4366330272486)
    ```
 
-   It didn't work as expected because `single` was consumed by `str`, so
+   It didn't work as expected because `choice` was consumed by `str`, so
    it wasn't intact when passed to `geo_coord`. Consider another
    example:
 
    ```pycon
    >>> geo_coord(
-   ...     lat=merged(
-   ...         single("equator", "arctic circle", "antarctic circle"),
-   ...         between(5, 10),
-   ...         func=lambda them: " ± ".join(str(x) for x in them)
+   ...     lat=choice(
+   ...         sample("equator", "north pole", "south pole", k=2)
    ...     )
    ... )
-   ('antarctic circle ± 7', 93.7335784938644, 388.76826219877256)
+   ('north pole', -140.1178603399875, 431.79874634752593)
    ```
 
-   Passing specs intact to one another is perfectly okay.
+   Although it's unnecessary to pass sample to choice, the example above
+   demonstrates that passing intact specs to one another is perfectly
+   okay.
 
 1. Resolve with `resolve`:
 
@@ -199,7 +199,7 @@ class UsersDB:
 
 ## Documentation
 
-$\huge \color{gray}protestr.\color{black}\textbf{provide(**kwdspecs)}$
+$\large \color{gray}protestr.\color{black}\textbf{provide(**kwdspecs)}$
 
 Provides specs to a function as keyword args. The names in the keywords
 may be in any order in the parameters. The function is thus modified to
@@ -207,27 +207,31 @@ be callable with the provided args omitted or specified to override.
 
 ```pycon
 >>> @provide(
-...     password=merged(
-...         single(ascii_uppercase),
-...         single(ascii_lowercase),
-...         single(digits),
-...         permutation(str, k=between(5, 100)),
-...         func="".join
-...     ),
-...     username=permutation(ascii_lowercase, k=between(4, 12))
+...     uppercase=choice(ascii_uppercase),
+...     lowercase=choice(ascii_lowercase),
+...     digit=choice(digits),
+...     chars=choices(str, k=between(5, 100))
+... )
+... def password(uppercase, lowercase, digit, chars):
+...     return "".join((uppercase, lowercase, digit, chars))
+
+>>> @provide(
+...     password=password,
+...     username=choices(ascii_lowercase, k=between(4, 12))
 ... )
 ... def credentials(username, password):
 ...     return username, password
-...
+
 >>> credentials()
 ('cgbqkmsehf', 'Pr8LOipCBKCBkAxbbKykppKkALxykKLOiKpiy')
+
 >>> credentials(username="johndoe")
 ('johndoe', 'En2HivppppimmFaFHpEeEEEExEamp')
 ```
 
 ##
 
-$\huge \color{gray}protestr.\color{black}\textbf{resolve(spec)}$
+$\large \color{gray}protestr.\color{black}\textbf{resolve(spec)}$
 
 Resolves a spec, which can be an `int`, `float`, `complex`, `float`,
 `str`, tuple, list, set, dictionary, or anything callable without args.
@@ -256,11 +260,11 @@ Resolves a spec, which can be an `int`, `float`, `complex`, `float`,
 
 ##
 
-$\huge \color{gray}protestr.specs.\color{black}\textbf{between(x, y)}$
+$\large \color{gray}protestr.specs.\color{black}\textbf{between(x, y)}$
 
-Returns a spec that resolves to a number between `x` and `y`, where `x`
-and `y` are specs that resolve to numbers. If both `x` and `y` resolve
-to integers, the resulting number is also an integer.
+Returns a spec to resolve a number between `x` and `y`, where `x` and
+`y` are specs that evaluate to numbers. If both `x` and `y` evaluate to
+integers, the resulting number is also an integer.
 
 ```pycon
 >>> between(10, -10)()
@@ -276,57 +280,56 @@ to integers, the resulting number is also an integer.
 
 ##
 
-$\huge \color{gray}protestr.specs.\color{black}\textbf{single(*elems)}$
+$\large \color{gray}protestr.specs.\color{black}\textbf{choice(*elems)}$
 
-Returns a spec that resolves to some member in `elems`, where `elems` is
-a spec that resolves to some iterable.
+Returns a spec to choose a member from `elems`, where `elems` is a spec
+that evaluates to some iterable.
 
 ```pycon
 >>> colors = ["red", "green", "blue"]
->>> single(colors)()
+>>> choice(colors)()
 'green'
 
->>> single(str)() # single char from a generated str
+>>> choice(str)() # chosen char from a generated str
 'T'
 
->>> single(str, str, str)() # single str from three str objects
+>>> choice(str, str, str)() # chosen str from three str objects
 'NOBuybxrf'
 ```
 
 ##
 
-$\huge \color{gray}protestr.specs.\color{black}\textbf{combination(*elems, k)}$
+$\large \color{gray}protestr.specs.\color{black}\textbf{sample(*elems, k)}$
 
-Returns a spec that resolves to a combination of `k` members from
-`elems` without repetition, where `k` and `elems` are specs that resolve
-to some natural number and collection, respectively.
+Returns a spec to choose `k` members from `elems` without replacement,
+where `k` and `elements` are specs that evaluate to some natural number
+and collection, respectively.
 
 ```pycon
 >>> colors = ["red", "green", "blue"]
->>> combination(colors, k=2)()
+>>> sample(colors, k=2)()
 ['blue', 'green']
 
->>> combination("red", "green", "blue", k=3)()
+>>> sample("red", "green", "blue", k=3)()
 ('red', 'blue', 'green')
 
->>> combination(ascii_letters, k=10)()
+>>> sample(ascii_letters, k=10)()
 'tkExshCbTi'
 
->>> combination([int] * 3, k=between(2, 3))() # 2–3 out of 3 integers
+>>> sample([int] * 3, k=between(2, 3))() # 2–3 out of 3 integers
 [497, 246]
 ```
 
 ##
 
-$\huge \color{gray}protestr.specs.\color{black}\textbf{permutation(*elems, k)}$
+$\large \color{gray}protestr.specs.\color{black}\textbf{choices(*elems, k)}$
 
-Returns a spec that resolves to a permutation of `k` members from
-`elems` with repetition, where `k` and `elems` are specs that resolve to
-some natural number and collection, respectively. It's usage is similar
-to `combination`.
+Returns a spec to choose `k` members from `elems` with replacement,
+where `k` and `elements` are specs that evaluate to some natural number
+and collection, respectively. It's usage is similar to `sample`.
 
 ```pycon
->>> permutation("abc", k=5)()
+>>> choices("abc", k=5)()
 'baaca'
 ```
 
@@ -352,8 +355,8 @@ class TestExample(unittest.TestCase):
     @provide(
         db=specs.testdb,
         user=specs.user,
-        shortpass=permutation(str, k=7),
-        longpass=permutation(str, k=16)
+        shortpass=choices(str, k=7),
+        longpass=choices(str, k=16)
     )
     @patch("tests.example.fakes.getenv")
     def test_insert_user_with_invalid_password_lengths_fails(
@@ -398,17 +401,21 @@ from tests.example.fakes import User, UsersDB
 ...
 
 @provide(
+    digit=choice(digits),                 # password to contain a
+    uppercase=choice(ascii_uppercase),    # number, an uppercase and a
+    lowercase=choice(ascii_lowercase),    # lowercase letter, and be
+    chars=choices(str, k=between(5, 100)) # 8–15 characters long
+)
+def password(uppercase, lowercase, digit, chars):
+    return "".join((uppercase, lowercase, digit, chars))
+
+
+@provide(
     id=str,
-    firstname=single("John", "Jane", "Orange"),
-    lastname=single("Smith", "Doe", "Carrot"),
-    username=permutation(ascii_letters, k=between(5, 10)),
-    password=merged(
-        single(digits),                     # password to contain a
-        single(ascii_uppercase),            # number, an uppercase and
-        single(ascii_lowercase),            # a lowercase letter and be
-        permutation(str, k=between(5, 12)), # 8–15 characters long
-        func="".join
-    )
+    firstname=choice("John", "Jane", "Orange"),
+    lastname=choice("Smith", "Doe", "Carrot"),
+    username=choices(ascii_lowercase, k=between(5, 10)),
+    password=password
 )
 def user(id, firstname, lastname, username, password):
     return User(id, firstname, lastname, username, password)
@@ -421,4 +428,5 @@ def testdb(users):
 
 ## License
 
-`protestr` is distributed under the terms of the [MIT](https://spdx.org/licenses/MIT.html) license.
+`protestr` is distributed under the terms of the
+[MIT](https://spdx.org/licenses/MIT.html) license.

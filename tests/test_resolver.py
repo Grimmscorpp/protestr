@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import Mock, patch, call
 from string import ascii_letters
 from protestr import provide, resolve
-from protestr.specs import between, single, permutation
+from protestr.specs import between, choice, choices
 
 
 class TestResolver(unittest.TestCase):
@@ -41,25 +41,25 @@ class TestResolver(unittest.TestCase):
             ]
         )
 
-    @provide(x=single(True, False))
-    @patch("protestr._resolver.choice")
-    def test_resolve_bool(self, choice, x):
-        choice.side_effect = [x]
+    @provide(x=choice(True, False))
+    @patch("protestr._resolver.randchoice")
+    def test_resolve_bool(self, randchoice, x):
+        randchoice.side_effect = [x]
 
         self.assertEqual(resolve(bool), x)
 
-        choice.assert_called_once_with((True, False))
+        randchoice.assert_called_once_with((True, False))
 
-    @provide(x=permutation(ascii_letters, k=len(ascii_letters)), k=int)
+    @provide(x=choices(ascii_letters, k=len(ascii_letters)), k=int)
     @patch("protestr._resolver.randint")
-    @patch("protestr._resolver.choices")
-    def test_resolve_str(self, choices, randint, x, k):
-        choices.side_effect = [[*x]]
+    @patch("protestr._resolver.randchoices")
+    def test_resolve_str(self, randchoices, randint, x, k):
+        randchoices.side_effect = [[*x]]
         randint.side_effect = [k]
 
         self.assertEqual(resolve(str), "".join(x))
 
-        choices.assert_called_once_with(ascii_letters, k=k)
+        randchoices.assert_called_once_with(ascii_letters, k=k)
         randint.assert_called_once_with(1, 50)
 
     @provide(n=between(1, 10), x=int)

@@ -1,4 +1,10 @@
-from random import randint, uniform, sample, choice, choices
+from random import (
+    randint,
+    uniform,
+    sample as randsample,
+    choice as randchoice,
+    choices as randchoices
+)
 from protestr import resolve
 
 
@@ -14,16 +20,16 @@ def between(x, y):
     return spec
 
 
-def single(*elems):
-    return lambda: choice(resolve(_unpack(elems)))
+def choice(*elems):
+    return lambda: randchoice(resolve(_unpack(elems)))
 
 
-def combination(*elems, k):
+def sample(*elems, k):
     def spec():
         resolved_elems = resolve(_unpack(elems))
 
         return _cast(
-            result=sample(
+            result=randsample(
                 population=resolved_elems,
                 k=resolve(k) if k else len(resolved_elems)
             ),
@@ -33,12 +39,12 @@ def combination(*elems, k):
     return spec
 
 
-def permutation(*elems, k):
+def choices(*elems, k):
     def spec():
         resolved_elems = resolve(_unpack(elems))
 
         return _cast(
-            result=choices(
+            result=randchoices(
                 population=resolved_elems,
                 k=resolve(k) if k else len(resolved_elems)
             ),
@@ -46,10 +52,6 @@ def permutation(*elems, k):
         )
 
     return spec
-
-
-def merged(*specs, func):
-    return lambda: func(resolve(_unpack(specs)))
 
 
 def _cast(result, elemtype):
