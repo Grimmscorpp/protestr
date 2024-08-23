@@ -14,7 +14,7 @@ Protester itself.
 1. [Getting Started](#getting-started)
    1. [Installation](#installation)
    1. [Creating Specs](#creating-specs)
-   1. [Tearing Down](#tearing-down)
+   1. [Ensuring Teardown](#ensuring-teardown)
 1. [Documentation](#documentation)
 1. [Working Example](#working-example)
 1. [License](#license)
@@ -93,21 +93,21 @@ following ways:
    ('north pole', -107.37336459941672, 581)
    ```
 
-   Here, `lat` and `alt` have been overridden with `choice` (a built-in
-   spec) and `int`. Generally, specs created with `provide()` can be
-   passed any spec to override defaults as long as they are passed
-   intact. Consider the following incorrect approach:
+   Here, `lat` and `alt` have been overridden with `choice()` (a
+   built-in spec) and `int`. Remember, **specs created with `provide()`
+   can be passed any spec to override defaults as long as they are
+   passed intact.** Consider the following incorrect approach:
 
    ```pycon
    >>> geo_coord(
-   ...     lat=str(choice("equator", "north pole", "south pole")) # ❌
+   ...     lat=str(choice(23.4394, -23.4394)) # ❌
    ... )
    ('<function[TRIMMED]98AF80>', -126.77844430204937, 678.4366330272486)
    ```
 
-   It didn't work as expected because `choice` was consumed by `str`, so
-   it wasn't intact when passed to `geo_coord`. Consider another
-   example:
+   What went wrong in the example above? The output of `choice()` (a
+   spec) got consumed by `str`, so it wasn't intact when assigned to
+   `lat`. Consider another example:
 
    ```pycon
    >>> geo_coord(
@@ -118,9 +118,9 @@ following ways:
    ('north pole', -140.1178603399875, 431.79874634752593)
    ```
 
-   Although it's unnecessary to pass `sample` to `choice`, the example
-   above demonstrates that passing intact specs to one another is
-   perfectly okay.
+   Although it's unnecessary to pass `sample()` to `choice()`, the
+   example above is to demonstrate that passing intact specs to one
+   another is perfectly okay.
 
 1. Resolve with `resolve`:
 
@@ -128,22 +128,26 @@ following ways:
    >>> from protestr import resolve
    >>> resolve(geo_coord)
    (-68.79360870922969, 8.200171266070214, 691.5305890425291)
+
+   >>> resolve(2*[geo_coord])
+   [(41.98113033422453, 24.72261644345585, 115.79597793585394),
+    (84.72658072806291, 84.71585789666494, 731.1552031682041)]
    ```
 
-   `resolve` also works with other types, as mentioned in
+   `resolve` also works with other types, as mentioned in the
    [Documentation](#documentation).
 
 1. Provide with `provide()`:
 
    ```python
-   @provide(geo_coords=2*[geo_coord])
-   def line(geo_coords):
-       start, end = geo_coords
+   @provide(two_coords=2*[geo_coord])
+   def line(two_coords):
+       start, end = two_coords
        return start, end
    ```
 
    `provide()` is the decorator version of `resolve` that accepts
-   multiple specs as keyword args.
+   multiple specs as keyword args and provides them to a function.
 
 > [!NOTE]
 > The `provide()` decorator works seamlessly when used alongside other
@@ -173,12 +177,12 @@ following ways:
 > >>> test()
 > ```
 
-### Tearing Down
+### Ensuring Teardown
 
 Good fixture design demands remembering to dispose of resources at the
 end of tests. Protestr takes care of it out of the box with the
 `__teardown__` function. Whenever a `provide()`-applied function returns
-or terminates abnormally, it looks for `__teardown__` on each (resolved)
+or terminates abnormally, it looks for `__teardown__` in each (resolved)
 object it provided and invokes it on the object if found. Any exceptions
 raised during the process are accumulated and reraised together as
 `Exception(ex1, ex2, ..., exn)`. So, all you need to do is define
@@ -299,6 +303,19 @@ that evaluates to some iterable.
 
 ##
 
+$\large \color{gray}protestr.specs.\color{black}\textbf{choices(*elems, k)}$
+
+Returns a spec to choose `k` members from `elems` with replacement,
+where `k` and `elems` are specs that evaluate to some natural number
+and collection, respectively. It's usage is similar to `sample()`.
+
+```pycon
+>>> choices("abc", k=5)()
+'baaca'
+```
+
+##
+
 $\large \color{gray}protestr.specs.\color{black}\textbf{sample(*elems, k)}$
 
 Returns a spec to choose `k` members from `elems` without replacement,
@@ -318,19 +335,6 @@ and collection, respectively.
 
 >>> sample([int] * 3, k=between(2, 3))() # 2–3 out of 3 integers
 [497, 246]
-```
-
-##
-
-$\large \color{gray}protestr.specs.\color{black}\textbf{choices(*elems, k)}$
-
-Returns a spec to choose `k` members from `elems` with replacement,
-where `k` and `elems` are specs that evaluate to some natural number
-and collection, respectively. It's usage is similar to `sample`.
-
-```pycon
->>> choices("abc", k=5)()
-'baaca'
 ```
 
 ## Working Example
