@@ -1,4 +1,4 @@
-from os import getenv
+import os
 from string import ascii_uppercase, ascii_lowercase, digits
 
 
@@ -21,22 +21,20 @@ class UsersDB:
                 f"User with username '{user.username}' exists already!"
             )
 
-        min_pw_len = int(getenv("MIN_PASSWORD_LEN"))
-        max_pw_len = int(getenv("MAX_PASSWORD_LEN"))
+        min_pw_len = int(os.getenv("MIN_PASSWORD_LEN"))
 
-        if not min_pw_len <= len(user.password) <= max_pw_len:
+        if len(user.password) < min_pw_len:
             raise Exception(
-                "Password size must be between "
-                f"{min_pw_len} and {max_pw_len}"
+                f"Password must be at least {min_pw_len} chars"
             )
 
-        if all(d not in user.password for d in digits):
+        if all(c not in digits for c in user.password):
             raise Exception("Password must contain a number")
 
-        if all(x not in user.password for x in ascii_uppercase):
+        if all(c not in ascii_uppercase for c in user.password):
             raise Exception("Password must contain an uppercase letter")
 
-        if all(x not in user.password for x in ascii_lowercase):
+        if all(c not in ascii_lowercase for c in user.password):
             raise Exception("Password must contain a lowercase letter")
 
         self.users.append(user)

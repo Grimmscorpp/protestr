@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "protestr"
 dynamic = ["version"]
-description = "Pro test fixture configurator"
+description = "The state-of-the-art test fixture configurator for Python"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"

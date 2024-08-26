@@ -21,12 +21,12 @@ def between(x, y):
 
 
 def choice(*elems):
-    return lambda: randchoice(resolve(_unpack(elems)))
+    return lambda: randchoice(resolve(_unpack_if_single(elems)))
 
 
 def sample(*elems, k):
     def spec():
-        resolved_elems = resolve(_unpack(elems))
+        resolved_elems = resolve(_unpack_if_single(elems))
 
         return _cast(
             result=randsample(
@@ -41,7 +41,7 @@ def sample(*elems, k):
 
 def choices(*elems, k):
     def spec():
-        resolved_elems = resolve(_unpack(elems))
+        resolved_elems = resolve(_unpack_if_single(elems))
 
         return _cast(
             result=randchoices(
@@ -53,11 +53,14 @@ def choices(*elems, k):
 
     return spec
 
+def recipe(*specs, then):
+    return lambda: then(resolve(_unpack_if_single(specs)))
+
 
 def _cast(result, elemtype):
     return "".join(result) if elemtype is str else \
         (*result,) if elemtype is tuple else result
 
-def _unpack(elems):
-    them = tuple(elems)
-    return them if len(them) > 1 else them[0]
+def _unpack_if_single(elems):
+    them = (*elems,)
+    return them[0] if len(them) == 1 else them
