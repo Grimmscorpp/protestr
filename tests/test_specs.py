@@ -1,7 +1,7 @@
 import unittest
-from unittest.mock import patch, call
+from unittest.mock import MagicMock, patch, call
 from protestr import provide
-from protestr.specs import between, choice, sample, choices
+from protestr.specs import between, choice, sample, choices, recipe
 import random
 
 
@@ -291,6 +291,36 @@ class TestSpecs(unittest.TestCase):
         )
 
         randchoices.assert_called_once_with(population=full_str, k=2)
+
+    @provide(
+        elems=3*[int],
+        result=str
+    )
+    @patch("protestr._specs.resolve")
+    def test_recipe_from_collection(self, resolve, elems, result):
+        elems_specs = 3 * [int]
+        resolve.side_effect = [elems]
+        then = MagicMock(side_effect=[result])
+
+        self.assertEqual(recipe(elems_specs, then=then)(), result)
+
+        resolve.assert_called_once_with(elems_specs)
+        then.assert_called_once_with(elems)
+
+    @provide(
+        elems=3*(int,),
+        result=str
+    )
+    @patch("protestr._specs.resolve")
+    def test_recipe_from_args(self, resolve, elems, result):
+        elems_specs = 3 * (int,)
+        resolve.side_effect = [elems]
+        then = MagicMock(side_effect=[result])
+
+        self.assertEqual(recipe(*elems_specs, then=then)(), result)
+
+        resolve.assert_called_once_with(elems_specs)
+        then.assert_called_once_with(elems)
 
 
 if __name__ == "__main__":

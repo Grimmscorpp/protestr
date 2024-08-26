@@ -1,7 +1,7 @@
 from protestr import provide
 from protestr.specs import between, choice, choices
 from string import ascii_uppercase, ascii_lowercase, digits
-from tests.example.fakes import User, UsersDB
+from tests.examples.fakes import User, UsersDB
 
 
 @provide(
