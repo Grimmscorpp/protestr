@@ -15,6 +15,7 @@ configurator for Python, written in Python, tested with Protestr itself!
 1. [Getting Started](#getting-started)
    1. [Installation](#installation)
    1. [Defining Specs](#defining-specs)
+   1. [Composing Specs](#composing-specs)
    1. [Ensuring Teardown](#ensuring-teardown)
 1. [Documentation](#documentation)
 1. [Working Example](#working-example)
@@ -26,7 +27,7 @@ configurator for Python, written in Python, tested with Protestr itself!
 class TestFactorial(unittest.TestCase):
     @provide(n=9, expected=362880)
     @provide(n=5, expected=120)
-    @provide(n=1, expected=1)
+    @provide(n=1)
     @provide(n=0, expected=1)
     def test_factorial_valid_number(self, n, expected):
         self.assertEqual(factorial(n), expected)
@@ -42,8 +43,7 @@ class TestFactorial(unittest.TestCase):
         self.assertEqual(message, expected)
 ```
 
-Find more sophisticated usages in the
-[Working Example](#working-example).
+Also see the [Working Example](#working-example).
 
 ## Rationale
 
@@ -96,9 +96,8 @@ def geo_coord(lat, lon, alt):
     return lat, lon, alt
 ```
 
-Thus, we have our first spec — `geo_coord`. Intuitive, isn't it? Now, we
-can "resolve" (generate) geo-coordinates whenever we need to in the
-following ways:
+Intuitive, isn't it? Now, you can "resolve" (generate) geo-coordinates
+whenever you need to in the following ways:
 
 1. Call without args:
 
@@ -120,53 +119,8 @@ following ways:
    ```
 
    Here, `lat` and `alt` have been overridden by passing `choice()` (a
-   built-in spec) and `int`. We can also pass specs composed of other
-   specs:
-
-   ```pycon
-   >>> geo_coord(
-   ...     lat=choice(
-   ...         choice("north pole", "south pole"),
-   ...         choice("arctic circle", "antarctic circle")
-   ...     )
-   ... )
-   ('arctic circle', 79.02746924451344, 489.26084905383436)
-   ```
-
-   So, we're asking it to choose one from "north pole" and "south pole",
-   then one from "arctic circle" and "antarctic circle", and finally one
-   from both results.
-
-   **Passing specs around in this manner works as long as they are
-   passed intact.**
-
-   To clarify, here's an example of an incorrect approach:
-
-   ```pycon
-   >>> geo_coord(
-   ...     lat=choice(
-   ...         str(choice("north pole", "south pole")).upper(), # ❌
-   ...         choice("arctic circle", "antarctic circle")
-   ...     )
-   ... )
-   ('<FUNCTION CHOICE.<LOCALS>.<LAMBDA> AT 0X000002AC8D9A2B00>', -72.90254553301114, 444.88184046168556)
-   ```
-
-   Here, `choice()` (a spec) got consumed by `str` before being passed
-   to `lat` in `geo_coord` (so it wasn't intact). The correct approach:
-
-   ```python
-   >>> geo_coord(
-   ...     lat=choice(
-   ...         recipe(
-   ...             choice("north pole", "south pole"), ✅
-   ...             then=str.upper
-   ...         ),
-   ...         choice("arctic circle", "antarctic circle")
-   ...     )
-   ... )
-   ('NORTH POLE', 6.952083290868416, 186.75647508172466)
-   ```
+   built-in spec) and `int`. Specs can also be composed of other specs
+   (see [Composing Specs](#composing-specs)).
 
 1. Resolve with `resolve`:
 
@@ -192,35 +146,46 @@ following ways:
        return start, end
    ```
 
-   `provide()` is the decorator version of `resolve` that accepts
-   multiple specs as keyword args and provides them to a function.
+   `provide()` can be applied to the same function multiple times to
+   repeat it with different values. It can also be used alongside other
+   decorators, such as `patch()`. More in the
+   [Documentation](#documentation).
+
+### Composing Specs
+
+A spec can be composed of other specs at any level:
+
+```pycon
+>>> geo_coord(
+...     lat=recipe(
+...         choice(
+...             choice("north pole", "90"),
+...             choice("equator", "0"),
+...             choice("south pole", "-90")
+...         ),
+...         then=str.upper
+...     )
+... )
+('SOUTH POLE', 156.88642301107768, 984.6386910178064)
+```
 
 > [!NOTE]
-> The `provide()` decorator works seamlessly when used alongside other
-> decorators, such as Python's handy `patch()` decorator. Please note,
-> however, that the `patch()` decorators must be next to one another,
-> and in the list of parameters, they must appear in the reverse order
-> as in the list of decorators (bottom-up). That's how `patch()` works
-> (more info in
-> [unittest.mock - Quick Guide](https://docs.python.org/3/library/unittest.mock.html#quick-guide)).
+>
+> **Composing specs works as long as they are passed intact.**
+>
+> To clarify, here's an *incorrect version* of the example right above:
 >
 > ```pycon
-> >>> from unittest.mock import patch
-> >>> from protestr import provide
->
-> >>> @provide(intgr=int)
-> ... @patch('module.ClassName2')
-> ... @patch('module.ClassName1')
-> ... def test(MockClass1, MockClass2, intgr):
-> ...     module.ClassName1()
-> ...     module.ClassName2()
-> ...     assert MockClass1 is module.ClassName1
-> ...     assert MockClass2 is module.ClassName2
-> ...     assert MockClass1.called
-> ...     assert MockClass2.called
-> ...     assert isinstance(intgr, int)
-> ...
-> >>> test()
+> >>> geo_coord(
+> ...     lat=str(                            # ❌
+> ...         choice(                         # This won't work since the
+> ...             choice("north pole", "90"), # composed choice(...) specs
+> ...             choice("equator", "0"),     # are consumed by str()
+> ...             choice("south pole", "-90") # before being passed to
+> ...         )                               # geo_coord (through lat),
+> ...     ).upper()                           # hence they aren't intact.
+> ... )
+> ('<FUNCTION CHOICE.<LOCALS>.<LAMBDA> AT 0X00000261A74A2320>', -72.90254553301114, 444.88184046168556)
 > ```
 
 ### Ensuring Teardown
@@ -247,11 +212,11 @@ class UsersDB:
 
 ## Documentation
 
-$\large \color{gray}@protestr.\color{black}\textbf{provide(**specs)}$
+$\large \color{gray}@protestr.\color{black}\textnormal{provide(**specs)}$
 
 Provide resolved specs to a function.
 
-The specs are provided implicitly from keyword args in `provide()` to
+The specs are provided automatically from keyword args in `provide()` to
 the matching parameters of the function when called with those args
 omitted. When specified as keyword args, they override the original
 specs.
@@ -286,34 +251,65 @@ If `provide()` is applied multiple times, any call to the function
 repeats successively to match that number, and teardowns are performed
 at the end of each invocation (see
 [Ensuring Teardown](#ensuring-teardown)). The execution of the
-decorators occurs in the usual Pythonic order, i.e. nearest first. The
-function returns the result of the last call.
+decorators occurs in the usual Pythonic order, i.e. bottom-up. The first
+(i.e. the bottom) one must provide all required specs. The subsequent
+ones may omit some or all specs, in which case they carry over from the
+previous call. The function returns the result of the last call.
 
 ```python
 @provide(
-    password=password,
-    username=choices(ascii_lowercase, k=between(4, 12))
+    password=password # from the previous example
+    # No need to repeat username here
 )
 @provide(
     password=None,
-    username=None
+    username=choices(ascii_lowercase, k=between(4, 12))
 )
 def credentials(username, password):
-    global times
-    times += 1
+    print(f"username: {username}")
+    print(f"password: {password}")
     return username, password
 ```
 ```pycon
->>> times = 0
 >>> credentials()
+username: vxqoogtgr
+password: None
+username: sbtft
+password: Ax4LzILzILZIZLpIpzIzLpzILLZIpLL
 ('sbtft', 'Ax4LzILzILZIZLpIpzIzLpzILLZIpLL')
->>> times
-2
 ```
+
+`provide()` can also be used alongside other decorators, such as
+`patch()`:
+
+```python
+import unittest
+from unittest.mock import patch
+
+class TestPatch(unittest.TestCase):
+    # this test runs twice
+    @provide(intgr=between(-1, -10))
+    @provide(intgr=int)
+    @patch('module.ClassName2')
+    @patch('module.ClassName1')
+    def test_patch(self, MockClass1, MockClass2, intgr):
+        module.ClassName1()
+        module.ClassName2()
+        self.assertIs(MockClass1, module.ClassName1)
+        self.assertIs(MockClass2, module.ClassName2)
+        self.assertTrue(MockClass1.called)
+        self.assertTrue(MockClass2.called)
+        self.assertIsInstance(intgr, int)
+```
+
+> [!NOTE]
+> The patches in the parameters are in the reverse order as in the list
+> of decorators, in the usual Pythonic order. That's how `patch()`
+> works. See [unittest.mock - Quick Guide](https://docs.python.org/3/library/unittest.mock.html#quick-guide).
 
 ##
 
-$\large \color{gray}protestr.\color{black}\textbf{resolve(spec)}$
+$\large \color{gray}protestr.\color{black}\textnormal{resolve(spec)}$
 
 Resolve a spec.
 
@@ -348,7 +344,7 @@ list, a set, a dictionary, or anything callable without args.
 
 ##
 
-$\large \color{gray}protestr.specs.\color{black}\textbf{between(x, y)}$
+$\large \color{gray}protestr.specs.\color{black}\textnormal{between(x, y)}$
 
 Return a spec to choose a number between `x` and `y`.
 
@@ -357,7 +353,6 @@ evaluate to integers, the resulting number is also an integer.
 
 ```pycon
 >>> between(10, -10)()
->>> int_spec()
 3
 ```
 ```pycon
@@ -371,7 +366,7 @@ evaluate to integers, the resulting number is also an integer.
 
 ##
 
-$\large \color{gray}protestr.specs.\color{black}\textbf{choice(*elems)}$
+$\large \color{gray}protestr.specs.\color{black}\textnormal{choice(*elems)}$
 
 Return a spec to choose a member from `elems`.
 
@@ -381,17 +376,17 @@ Return a spec to choose a member from `elems`.
 'green'
 ```
 ```pycon
->>> choice(str)() # a char from a generated str
+>>> choice(str)() # generate an str and choose a char from it
 'T'
 ```
 ```pycon
->>> choice(str, str, str)() # an str from three generated str objects
+>>> choice(str, str, str)() # generate 3 strs and choose one of them
 'NOBuybxrf'
 ```
 
 ##
 
-$\large \color{gray}protestr.specs.\color{black}\textbf{choices(*elems, k)}$
+$\large \color{gray}protestr.specs.\color{black}\textnormal{choices(*elems, k)}$
 
 Returns a spec to choose `k` members from `elems` with replacement.
 
@@ -412,7 +407,7 @@ Returns a spec to choose `k` members from `elems` with replacement.
 
 ##
 
-$\large \color{gray}protestr.specs.\color{black}\textbf{sample(*elems, k)}$
+$\large \color{gray}protestr.specs.\color{black}\textnormal{sample(*elems, k)}$
 
 Return a spec to choose `k` members from `elems` without replacement.
 
@@ -438,12 +433,19 @@ Return a spec to choose `k` members from `elems` without replacement.
 
 ##
 
-$\large \color{gray}protestr.specs.\color{black}\textbf{recipe(*specs, then)}$
+$\large \color{gray}protestr.specs.\color{black}\textnormal{recipe(*specs, then)}$
 
 Return a spec to get the result of calling a given function with some
 given specs resolved.
 
-`then` must be callable with a collection of the resolved specs.
+`then` must be a function. After resolving the given specs, Protestr
+calls the `then` function with the resolved specs. If a single arg is
+given (i.e. one spec or a single collection of specs), it calls `then`
+with the result directly. In case of multiple args, it calls `then` with
+a tuple containing all the results.
+
+> [!TIP]
+> `then` can also be a constructor.
 
 ```pycon
 >>> recipe(
@@ -452,6 +454,22 @@ given specs resolved.
 ...     then="".join
 ... )()
 'yDnjU16430'
+```
+```pycon
+>>> recipe(int, then=str)()
+'478'
+```
+```pycon
+>>> recipe(str, then=str.upper)()
+'OXMXSJFEBWFBIL'
+```
+```pycon
+>>> recipe(str, then=str.encode)()
+b'IHbNrZeSYYLm'
+```
+```pycon
+>>> recipe(5, then=lambda i: i**2)()
+25
 ```
 
 ## Working Example
@@ -479,9 +497,7 @@ class TestExamples(unittest.TestCase):
             choices(ascii_uppercase, k=5),
             then="".join
         ),
-        expected="Password must contain a lowercase letter",
-        db=specs.testdb,
-        user=specs.user
+        expected="Password must contain a lowercase letter"
     )
     @provide(
         password=recipe(
@@ -489,15 +505,11 @@ class TestExamples(unittest.TestCase):
             choices(ascii_lowercase, k=5),
             then="".join
         ),
-        expected="Password must contain an uppercase letter",
-        db=specs.testdb,
-        user=specs.user
+        expected="Password must contain an uppercase letter"
     )
     @provide(
         password=choices(ascii_letters, k=8),
-        expected="Password must contain a number",
-        db=specs.testdb,
-        user=specs.user
+        expected="Password must contain a number"
     )
     @provide(
         password=choices(str, k=7),
