@@ -1,4 +1,4 @@
-name: Upload Python Package
+name: Publish Python 🐍 distribution 📦 to PyPI
 
 on:
   release:
