@@ -13,137 +13,185 @@ class Tearable:
 
 class TestProvider(unittest.TestCase):
     @patch("protestr.resolve")
-    def test_provide_once(self, resolve):
-        resolve.side_effect = lambda s: s() if callable(s) else s
+    def test_provide(self, resolve):
+        resolved_tearables = [
+            Tearable(), Tearable(), Tearable()
+        ]
 
-        def orig_func(*args, **kwds): return args, kwds
+        resolved_tearable_lists = [
+            [Tearable(), Tearable()],
+            [Tearable(), Tearable()],
+            [Tearable(), Tearable(), Tearable()],
+        ]
 
-        provided_func = provide(
+        resolved_values = ["string1", "string2", 1]
+
+        resolved_value_lists = [
+            ["string3", "string4"],
+            ["string5", "string6"],
+            ["string7", "string8", "string9"]
+        ]
+
+        resolved_overridden_tearable_lists = [
+            [Tearable()], [Tearable()], [Tearable()]
+        ]
+
+        resolved_additional_tearable_lists = [
+            [Tearable()], [Tearable()], [Tearable()]
+        ]
+
+        resolve.side_effect = [
+            "literal",
+            resolved_tearables[0],
+            resolved_tearable_lists[0],
+            resolved_values[0],
+            resolved_value_lists[0],
+            resolved_overridden_tearable_lists[0],
+            resolved_additional_tearable_lists[0],
+
+            "literal",
+            resolved_tearables[1],
+            resolved_tearable_lists[1],
+            resolved_values[1],
+            resolved_value_lists[1],
+            resolved_overridden_tearable_lists[1],
+            resolved_additional_tearable_lists[1],
+
+            "another literal",
+            resolved_tearables[2],
+            resolved_tearable_lists[2],
+            resolved_values[2],
+            resolved_value_lists[2],
+            resolved_overridden_tearable_lists[2],
+            resolved_additional_tearable_lists[2]
+        ]
+
+        ignored = Tearable()
+
+        provided = provide(
+            literal="another literal",
             tearable=Tearable,
-            provided_kwd="provided_kwd",
-            orig_func_kwd="modified_func_kwd"
-        )(orig_func)
-
-        (arg,), kwds = provided_func(
-            "orig_func_arg",
-            orig_func_kwd="orig_func_kwd"
+            tearables=3*[Tearable],
+            spec=int,
+            specs=3*[str],
+            to_override=ignored,
+        )(
+            provide(
+                to_override=ignored
+            )(
+                provide(
+                    literal="literal",
+                    tearable=Tearable,
+                    tearables=2*[Tearable],
+                    spec=str,
+                    specs=2*[str],
+                    to_override=ignored,
+                )(
+                    lambda *args, **kwds: (args, kwds)
+                )
+            )
         )
 
-        self.assertEqual(arg, "orig_func_arg")
+        def untouched(): pass
 
-        self.assertIsInstance(kwds, dict)
-
-        self.assertEqual(
-            [*kwds], [
-                "tearable",
-                "provided_kwd",
-                "orig_func_kwd"
-            ]
+        (arg,), kwds = provided(
+            untouched,
+            to_override=[Tearable],
+            additional_kwd=[Tearable]
         )
-
-        self.assertEqual(kwds["orig_func_kwd"], "orig_func_kwd")
-        self.assertEqual(kwds["provided_kwd"], "provided_kwd")
-        self.assertTrue(kwds["tearable"].torndown)
-
-        self.assertEqual(
-            resolve.mock_calls, [
-                call(Tearable),
-                call("provided_kwd"),
-                call("orig_func_kwd")
-            ]
-        )
-
-    @patch("protestr.resolve")
-    def test_provide_once_tearable_collection(self, resolve):
-        resolve.side_effect = [[Tearable()]]
-
-        def orig_func(tearables): return tearables
-
-        provided_func = provide(tearables=[Tearable])(orig_func)
-
-        tearable, = provided_func()
-
-        self.assertTrue(tearable.torndown)
-
-    @patch("protestr.resolve")
-    def test_provide_thrice(self, resolve):
-        resolve.side_effect = lambda s: s() if callable(s) else s
-
-        def orig_func(*args, **kwds): return args, kwds
-
-        provided_func = provide(
-            tearable=Tearable,
-            provided_kwd="provided_kwd1",
-            orig_func_kwd="modified_func_kwd1"
-        )(orig_func)
-
-        provided_func = provide(
-            tearable=Tearable,
-            provided_kwd="provided_kwd2",
-            orig_func_kwd="modified_func_kwd2"
-        )(provided_func)
-
-        provided_func = provide(
-            tearable=Tearable,
-            provided_kwd="provided_kwd3",
-            orig_func_kwd="modified_func_kwd3"
-        )(provided_func)
-
-        (arg,), kwds = provided_func(
-            "orig_func_arg",
-            orig_func_kwd="orig_func_kwd"
-        )
-
-        self.assertEqual(arg, "orig_func_arg")
-
-        self.assertIsInstance(kwds, dict)
-
-        self.assertEqual(
-            [*kwds], [
-                "tearable",
-                "provided_kwd",
-                "orig_func_kwd"
-            ]
-        )
-
-        self.assertEqual(kwds["orig_func_kwd"], "orig_func_kwd")
-        self.assertEqual(kwds["provided_kwd"], "provided_kwd3")
-        self.assertTrue(kwds["tearable"].torndown)
 
         self.assertEqual(
             resolve.mock_calls, [
+                call("literal"),
                 call(Tearable),
-                call("provided_kwd1"),
-                call("orig_func_kwd"),
+                call(2*[Tearable]),
+                call(str),
+                call(2*[str]),
+                call([Tearable]),
+                call([Tearable]),
+
+                call("literal"),
                 call(Tearable),
-                call("provided_kwd2"),
-                call("orig_func_kwd"),
+                call(2*[Tearable]),
+                call(str),
+                call(2*[str]),
+                call([Tearable]),
+                call([Tearable]),
+
+                call("another literal"),
                 call(Tearable),
-                call("provided_kwd3"),
-                call("orig_func_kwd")
+                call(3*[Tearable]),
+                call(int),
+                call(3*[str]),
+                call([Tearable]),
+                call([Tearable])
             ]
         )
 
-    @patch("protestr.resolve")
-    def test_provide_thrice_tearable_collection(self, resolve):
-        tearable1 = Tearable()
-        tearable2 = Tearable()
-        tearable3 = Tearable()
+        self.assertEqual(arg, untouched)
 
-        resolve.side_effect = [[tearable1], [tearable2], [tearable3]]
+        self.assertEqual(
+            [*kwds], [
+                "literal",
+                "tearable",
+                "tearables",
+                "spec",
+                "specs",
+                "to_override",
+                "additional_kwd"
+            ]
+        )
 
-        def orig_func(tearables): return tearables
+        self.assertEqual(kwds["literal"], "another literal")
 
-        provided_func = provide(tearables=[Tearable])(orig_func)
-        provided_func = provide(tearables=[Tearable])(provided_func)
-        provided_func = provide(tearables=[Tearable])(provided_func)
+        self.assertEqual(kwds["tearable"], resolved_tearables[2])
 
-        tearable, = provided_func()
-        self.assertEqual(tearable, tearable3)
+        self.assertEqual(
+            kwds["tearables"],
+            resolved_tearable_lists[2]
+        )
 
-        self.assertTrue(tearable1.torndown)
-        self.assertTrue(tearable2.torndown)
-        self.assertTrue(tearable3.torndown)
+        self.assertEqual(kwds["spec"], resolved_values[2])
+
+        self.assertEqual(kwds["specs"], resolved_value_lists[2])
+
+        self.assertEqual(
+            kwds["to_override"],
+            resolved_overridden_tearable_lists[2]
+        )
+
+        self.assertEqual(
+            kwds["additional_kwd"],
+            resolved_additional_tearable_lists[2]
+        )
+
+        self.assertTrue(all(x.torndown for x in resolved_tearables))
+
+        self.assertTrue(
+            all(
+                x.torndown
+                for l in resolved_tearable_lists
+                for x in l
+            )
+        )
+
+        self.assertTrue(
+            all(
+                x.torndown
+                for l in resolved_overridden_tearable_lists
+                for x in l
+            )
+        )
+
+        self.assertTrue(
+            all(
+                x.torndown
+                for l in resolved_additional_tearable_lists
+                for x in l
+            )
+        )
+
+        self.assertFalse(ignored.torndown)
 
 
 if __name__ == "__main__":
