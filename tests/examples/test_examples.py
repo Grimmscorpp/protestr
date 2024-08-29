@@ -21,7 +21,7 @@ def factorial(n):
 class TestExamples(unittest.TestCase):
     @provide(n=9, expected=362880)
     @provide(n=5, expected=120)
-    @provide(n=1, expected=1)
+    @provide(n=1)
     @provide(n=0, expected=1)
     def test_factorial_valid_number(self, n, expected):
         self.assertEqual(factorial(n), expected)
@@ -59,9 +59,7 @@ class TestExamples(unittest.TestCase):
             choices(ascii_uppercase, k=5),
             then="".join
         ),
-        expected="Password must contain a lowercase letter",
-        db=specs.testdb,
-        user=specs.user
+        expected="Password must contain a lowercase letter"
     )
     @provide(
         password=recipe(
@@ -69,15 +67,11 @@ class TestExamples(unittest.TestCase):
             choices(ascii_lowercase, k=5),
             then="".join
         ),
-        expected="Password must contain an uppercase letter",
-        db=specs.testdb,
-        user=specs.user
+        expected="Password must contain an uppercase letter"
     )
     @provide(
         password=choices(ascii_letters, k=8),
-        expected="Password must contain a number",
-        db=specs.testdb,
-        user=specs.user
+        expected="Password must contain a number"
     )
     @provide(
         password=choices(str, k=7),

@@ -7,10 +7,14 @@ def provide(**specs):
         def provided(*args, **kwds):
             from protestr import resolve
 
+            all_specs = {}
+
             for specs in provided.__specslist__:
+                all_specs |= specs | kwds
+
                 try:
                     resolved = {
-                        k: resolve(s) for k, s in (specs|kwds).items()
+                        k: resolve(s) for k, s in all_specs.items()
                     }
                     result = func(*args, **resolved)
                 finally:
