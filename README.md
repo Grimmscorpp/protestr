@@ -11,8 +11,10 @@ Protestr was born to help you:
 
 ✔ Focus on acts and assertions rather than fixture creation and
 teardown.
+
 ✔ Configure specs (the building blocks) once and provide them to test
 methods in all possible combinations.
+
 ✔ Repeat tests with different test cases in all frameworks.
 
 ## Table of Contents
