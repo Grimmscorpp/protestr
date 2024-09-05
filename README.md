@@ -7,12 +7,13 @@
 
 The state-of-the-art [fixture](#rationale) provider for tests in Python.
 
-- Protestr was born to help you focus on acts and assertions rather than
-  worry about fixture creation and teardown.
-- It lets you configure specs (the building blocks) once and provide
-  them to test methods in all possible combinations.
-- It can also repeat tests with different test cases and cooperate with
-  all frameworks and tools.
+Protestr was born to help you:
+
+✔ Focus on acts and assertions rather than fixture creation and
+teardown.
+✔ Configure specs (the building blocks) once and provide them to test
+methods in all possible combinations.
+✔ Repeat tests with different test cases in all frameworks.
 
 ## Table of Contents
 
