@@ -7,15 +7,15 @@
 
 The state-of-the-art [fixture](#rationale) provider for tests in Python.
 
-Protestr was born to help you:
+Protestr enables you to:
 
-✔ Focus on acts and assertions rather than fixture creation and
+- Focus on acts and assertions rather than fixture creation and
 teardown.
 
-✔ Configure specs (the building blocks) once and provide them to test
+- Configure specs (the building blocks) once and provide them to test
 methods in all possible combinations.
 
-✔ Repeat tests with different test cases in all frameworks.
+- Repeat tests with different test cases in all frameworks.
 
 ## Table of Contents
 
