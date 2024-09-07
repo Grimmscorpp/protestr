@@ -1,21 +1,19 @@
-# protestr
+# Protestr: Pro Test Fixture Provider
 
 [![PyPI - Version](https://img.shields.io/pypi/v/protestr.svg)](https://pypi.org/project/protestr)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/protestr.svg)](https://pypi.org/project/protestr)
 
 -----
 
-The state-of-the-art [fixture](#rationale) provider for tests in Python.
-
-Protestr enables you to:
-
-- Focus on acts and assertions rather than fixture creation and
-  teardown.
-
-- Define specs (the building blocks) once and provide them to test
-  methods in all possible combinations.
-
-- Repeat tests with different test cases in all frameworks.
+Protestr is a simple yet powerful library that generates versatile
+fixtures based on _your_ rules. Its intuitive API lets you define those
+rules, _provide_ them to test methods as fixtures of all possible
+combinations, _rerun_ test methods for different test cases, and ensure
+_teardown_ without fail so that you can focus on your acts and asserts
+rather than setup and cleanup. It's designed to integrate seamlessly
+with all popular Python testing frameworks, such as `unittest`, `pytest`
+and `nose2`, ensuring a smooth transition and minimal disruption to your
+existing testing practices.
 
 ## Table of Contents
 
