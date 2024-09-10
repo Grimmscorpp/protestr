@@ -32,6 +32,8 @@ fixture management. Its intuitive API lets you:
 The example below shows how you can simplify and dynamize your tests
 with Protestr.
 
+![diff](https://github.com/user-attachments/assets/e41978ba-7234-4968-acd4-2bddd2214bc5)
+
 | Without Protestr | With Protestr |
 | :--------------: | :-----------: |
 | ![without-protestr](https://github.com/user-attachments/assets/c4229c86-6959-4984-b57f-c1acf3f381d9) | ![with-protestr](https://github.com/user-attachments/assets/317dcf66-a974-4599-a3b1-86804c24a186) |
