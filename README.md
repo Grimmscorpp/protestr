@@ -5,15 +5,201 @@
 
 -----
 
-Protestr is a simple yet powerful library that generates versatile
-fixtures based on _your_ rules. Its intuitive API lets you define those
-rules, _provide_ them to test methods as fixtures of all possible
-combinations, _rerun_ test methods for different test cases, and ensure
-_teardown_ without fail so that you can focus on your acts and asserts
-rather than setup and cleanup. It's designed to integrate seamlessly
-with all popular Python testing frameworks, such as `unittest`, `pytest`
-and `nose2`, ensuring a smooth transition and minimal disruption to your
-existing testing practices.
+Protestr is a simple, powerful Python library that generates versatile
+[fixtures](#rationale) based on **your rules.** It's designed to
+maximize focus on acts and assertions by handling the complexities of
+fixture management. Its intuitive API lets you:
+
+- **Define specs (the rules)**  
+  Configure constraints that shape different parts of your fixtures.
+ 
+- **Provide fixtures**  
+  Combine specs to produce dynamic fixtures for your test methods using
+  dependency injection.
+
+- **Rerun tests**  
+  Provide multiple fixtures to a test method to address different test
+  cases instead of duplicating it with hardly any change.
+
+- **Ensure teardown**  
+  Have your defined cleanup logic run consistently after every test run.
+
+- **Use anywhere**  
+  Integrate seamlessly with all popular Python testing frameworks, such
+  as `unittest`, `pytest`, and `nose2`, facing zero disruption to your
+  existing testing practices.
+
+The example below shows how you can simplify and dynamize your tests
+with Protestr.
+
+```python
+import unittest                                                        #
+from protestr import provide
+from protestr.specs import choices, recipe
+from somewhere import my_password_validator as validator
+from string import (
+    ascii_letters, ascii_uppercase, ascii_lowercase, digits
+)
+
+
+class TestPasswordValidator(unittest.TestCase):
+    @provide(
+        password=recipe(
+            choices(ascii_uppercase, k=4),
+            choices(ascii_lowercase, k=4),
+            choices(digits, k=4),
+            then="".join
+        ),
+        expected=None
+    )
+    @provide(
+        password=recipe(
+            choices(ascii_uppercase, k=4),
+            choices(digits, k=4),
+            then="".join
+        ),
+        expected="Password should contain a lowercase letter"
+    )
+    @provide(
+        password=recipe(
+            choices(ascii_lowercase, k=4),
+            choices(digits, k=4),
+            then="".join
+        ),
+        expected="Password should contain an uppercase letter"
+    )
+    @provide(
+        password=choices(ascii_letters, k=8),
+        expected="Password should contain a number"
+    )
+    @provide(
+        password=choices(str, k=7),
+        expected="Password should be at least 8 chars"
+    )
+    def test_validate(self, password, expected):
+        try:
+            validator.validate(password)
+        except Exception as ex:
+            message, = ex.args
+            self.assertEqual(message, expected)
+        else:
+            self.assertIsNone(expected)
+
+
+if __name__ == "__main__":
+    unittest.main()
+```
+
+```python
+import unittest                                                        #
+from somewhere import my_password_validator as validator
+
+
+
+
+
+
+
+class TestPasswordValidator(unittest.TestCase):
+    def test_validate_short_password(self):
+        try:
+            validator.validate("short")
+        except Exception as ex:
+            message, = ex.args
+
+        self.assertEqual(message, "Password should be at least 8 chars")
+
+    def test_validate_letters_only(self):
+        try:
+            validator.validate("letters only")
+        except Exception as ex:
+            message, = ex.args
+
+        self.assertEqual(message, "Password should contain a number")
+
+    def test_validate_lowercase_and_digits(self):
+        try:
+            validator.validate("lowercase and 1 digit")
+        except Exception as ex:
+            message, = ex.args
+
+        self.assertEqual(
+            message, "Password should contain an uppercase letter"
+        )
+
+    def test_validate_uppercase_and_digits(self):
+        try:
+            validator.validate("UPPERCASE AND 1 DIGIT")
+        except Exception as ex:
+            message, = ex.args
+
+        self.assertEqual(
+            message, "Password should contain a lowercase letter"
+        )
+
+    def test_validate_both_cases_and_digits(self):
+        try:
+            validator.validate("UPPERCASE, lowercase, and 1 digit")
+        except Exception:
+            raise
+
+
+if __name__ == "__main__":
+    unittest.main()
+```
+
+### Step I: The basic test (without Protestr)
+
+```python
+from somewhere import my_password_validator as validator
+
+
+class TestPasswordValidator(unittest.TestCase):
+    def test_validate(self):
+        password = "7 chars"
+        expected = "Password should be at least 8 chars"
+
+        try:
+            validator.validate(password)
+        except Exception as ex:
+            message, = ex.args
+
+        self.assertEqual(message, expected)
+
+
+if __name__ == "__main__":
+    unittest.main()
+```
+
+### Step II: Parameterize the test with Protestr
+
+```diff
++ from protestr import provide
++ from protestr.specs import choices
+  from somewhere import my_password_validator as validator
+  
+  
+  class TestPasswordValidator(unittest.TestCase):
++     @provide(
++         password=choices(str, k=7),
++         expected="Password should be at least 8 chars"
++     )
+-     def test_validate(self):
++     def test_validate(self, password, expected):
+-         password = "7 chars"
+-         expected = "Password should be at least 8 chars"
+-
+          try:
+              validator.validate(password)
+          except Exception as ex:
+              message, = ex.args
+
+          self.assertEqual(message, expected)
+  
+  
+  if __name__ == "__main__":
+      unittest.main()
+```
 
 ## Table of Contents
 

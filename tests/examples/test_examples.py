@@ -1,41 +1,15 @@
 import unittest
 from unittest.mock import patch
 from protestr import provide, resolve
-from protestr.specs import between, choice, choices, recipe
+from protestr.specs import choice, choices, recipe
 from string import (
     ascii_lowercase, ascii_uppercase, ascii_letters, digits
 )
 import tests.examples.specs as specs
-
-
-def factorial(n):
-    if n < 0:
-        raise Exception("n must be non-negative")
-
-    if int(n) != n:
-        raise Exception("n must be an integer")
-
-    return 1 if n < 2 else n * factorial(n - 1)
+from tests.examples.somewhere import my_password_validator as validator
 
 
 class TestExamples(unittest.TestCase):
-    @provide(n=9, expected=362880)
-    @provide(n=5, expected=120)
-    @provide(n=1, expected=1)
-    @provide(n=0, expected=1)
-    def test_factorial_valid_number(self, n, expected):
-        self.assertEqual(factorial(n), expected)
-
-    @provide(n=1.5, expected="n must be an integer")
-    @provide(n=between(-10000, -1), expected="n must be non-negative")
-    def test_factorial_invalid_number(self, n, expected):
-        try:
-            factorial(n)
-        except Exception as e:
-            message, = e.args
-
-        self.assertEqual(message, expected)
-
     @provide(
         db=specs.testdb,
         user=specs.user
@@ -117,6 +91,92 @@ class TestExamples(unittest.TestCase):
         self.assertIn(user, db.users)
 
         getenv.assert_called_once_with("MIN_PASSWORD_LEN")
+
+
+class TestPasswordValidator(unittest.TestCase):
+    @provide(
+        password=recipe(
+            choices(ascii_uppercase, k=4),
+            choices(ascii_lowercase, k=4),
+            choices(digits, k=4),
+            then="".join
+        ),
+        expected=None
+    )
+    @provide(
+        password=recipe(
+            choices(ascii_uppercase, k=4),
+            choices(digits, k=4),
+            then="".join
+        ),
+        expected="Password should contain a lowercase letter"
+    )
+    @provide(
+        password=recipe(
+            choices(ascii_lowercase, k=4),
+            choices(digits, k=4),
+            then="".join
+        ),
+        expected="Password should contain an uppercase letter"
+    )
+    @provide(
+        password=choices(ascii_letters, k=8),
+        expected="Password should contain a number"
+    )
+    @provide(
+        password=choices(str, k=7),
+        expected="Password should be at least 8 chars"
+    )
+    def test_validate(self, password, expected):
+        try:
+            validator.validate(password)
+        except Exception as ex:
+            message, = ex.args
+            self.assertEqual(message, expected)
+        else:
+            self.assertIsNone(expected)
+
+    def test_validate_short_password(self):
+        try:
+            validator.validate("short")
+        except Exception as ex:
+            message, = ex.args
+
+        self.assertEqual(message, "Password should be at least 8 chars")
+
+    def test_validate_letters_only(self):
+        try:
+            validator.validate("letters only")
+        except Exception as ex:
+            message, = ex.args
+
+        self.assertEqual(message, "Password should contain a number")
+
+    def test_validate_lowercase_and_digits(self):
+        try:
+            validator.validate("lowercase and 1 digit")
+        except Exception as ex:
+            message, = ex.args
+
+        self.assertEqual(
+            message, "Password should contain an uppercase letter"
+        )
+
+    def test_validate_uppercase_and_digits(self):
+        try:
+            validator.validate("UPPERCASE AND 1 DIGIT")
+        except Exception as ex:
+            message, = ex.args
+
+        self.assertEqual(
+            message, "Password should contain a lowercase letter"
+        )
+
+    def test_validate_both_cases_and_digits(self):
+        try:
+            validator.validate("UPPERCASE, lowercase, and 1 digit")
+        except Exception:
+            raise
 
 
 if __name__ == "__main__":

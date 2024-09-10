@@ -25,6 +25,6 @@ def user(id, firstname, lastname, username, password):
     return User(id, firstname, lastname, username, password)
 
 
-@provide(users=3*[user])
+@provide(users=3 * [user])
 def testdb(users):
     return UsersDB(users)

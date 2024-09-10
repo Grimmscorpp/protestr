@@ -53,6 +53,7 @@ def choices(*elems, k):
 
     return spec
 
+
 def recipe(*specs, then):
     return lambda: then(resolve(_unpack_if_single(specs)))
 

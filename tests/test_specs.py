@@ -50,7 +50,7 @@ class TestSpecs(unittest.TestCase):
         self.assertIsInstance(real, float)
         self.assertTrue(min(m, n) <= real <= max(m, n))
 
-    @provide(elems=3*[int])
+    @provide(elems=3 * [int])
     @patch("protestr._specs.resolve")
     def test_choice_from_collection(self, resolve, elems):
         elems_spec = 3 * [int]
@@ -61,7 +61,7 @@ class TestSpecs(unittest.TestCase):
         resolve.assert_called_once_with(elems_spec)
         self.assertIn(intgr, elems)
 
-    @provide(elems=[int]*3)
+    @provide(elems=3 * [int])
     @patch("protestr._specs.resolve")
     def test_choice_from_args(self, resolve, elems):
         elems_spec = (int,) * 3
@@ -72,7 +72,7 @@ class TestSpecs(unittest.TestCase):
         resolve.assert_called_once_with(elems_spec)
         self.assertIn(intgr, elems)
 
-    @provide(all_elems=3*(int,))
+    @provide(all_elems=3 * (int,))
     @patch("protestr._specs.randsample")
     @patch("protestr._specs.resolve")
     def test_sample_of_k_from_args(
@@ -99,7 +99,7 @@ class TestSpecs(unittest.TestCase):
 
         randsample.assert_called_once_with(population=all_elems, k=2)
 
-    @provide(all_elems=3*(int,))
+    @provide(all_elems=3 * (int,))
     @patch("protestr._specs.randsample")
     @patch("protestr._specs.resolve")
     def test_sample_of_k_from_tuple(
@@ -126,7 +126,7 @@ class TestSpecs(unittest.TestCase):
 
         randsample.assert_called_once_with(population=all_elems, k=2)
 
-    @provide(all_elems=3*[int])
+    @provide(all_elems=3 * [int])
     @patch("protestr._specs.randsample")
     @patch("protestr._specs.resolve")
     def test_sample_of_k_from_list(
@@ -182,7 +182,7 @@ class TestSpecs(unittest.TestCase):
 
         randsample.assert_called_once_with(population=full_str, k=2)
 
-    @provide(all_elems=3*(int,))
+    @provide(all_elems=3 * (int,))
     @patch("protestr._specs.randchoices")
     @patch("protestr._specs.resolve")
     def test_choices_of_k_from_args(
@@ -209,7 +209,7 @@ class TestSpecs(unittest.TestCase):
 
         randchoices.assert_called_once_with(population=all_elems, k=2)
 
-    @provide(all_elems=3*(int,))
+    @provide(all_elems=3 * (int,))
     @patch("protestr._specs.randchoices")
     @patch("protestr._specs.resolve")
     def test_choices_of_k_from_tuple(
@@ -236,7 +236,7 @@ class TestSpecs(unittest.TestCase):
 
         randchoices.assert_called_once_with(population=all_elems, k=2)
 
-    @provide(all_elems=3*[int])
+    @provide(all_elems=3 * [int])
     @patch("protestr._specs.randchoices")
     @patch("protestr._specs.resolve")
     def test_choices_of_k_from_list(
@@ -293,7 +293,7 @@ class TestSpecs(unittest.TestCase):
         randchoices.assert_called_once_with(population=full_str, k=2)
 
     @provide(
-        elems=3*[int],
+        elems=3 * [int],
         result=str
     )
     @patch("protestr._specs.resolve")
@@ -308,7 +308,7 @@ class TestSpecs(unittest.TestCase):
         then.assert_called_once_with(elems)
 
     @provide(
-        elems=3*(int,),
+        elems=3 * (int,),
         result=str
     )
     @patch("protestr._specs.resolve")
