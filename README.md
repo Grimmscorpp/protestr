@@ -33,7 +33,7 @@ The example below shows how you can simplify and dynamize your tests
 with Protestr.
 
 ```python
-import unittest                                                        #
+import unittest                                                          #
 from protestr import provide
 from protestr.specs import choices, recipe
 from somewhere import my_password_validator as validator
@@ -91,7 +91,7 @@ if __name__ == "__main__":
 ```
 
 ```python
-import unittest                                                        #
+import unittest                                                          #
 from somewhere import my_password_validator as validator
 
 
