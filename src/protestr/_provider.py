@@ -9,13 +9,11 @@ def provide(**specs):
 
             all_specs = {}
 
-            for specs in provided.__specslist__:
+            for specs in reversed(provided.__specslist__):
                 all_specs |= specs | kwds
 
                 try:
-                    resolved = {
-                        k: resolve(s) for k, s in all_specs.items()
-                    }
+                    resolved = {k: resolve(s) for k, s in all_specs.items()}
                     result = func(*args, **resolved)
                 finally:
                     _teardown(resolved.values())
@@ -30,9 +28,9 @@ def provide(**specs):
 
 def _teardown(values):
     for v in values:
-        is_collection = isinstance(v, tuple) or \
-            isinstance(v, list) or \
-            isinstance(v, set)
+        is_collection = (
+            isinstance(v, tuple) or isinstance(v, list) or isinstance(v, set)
+        )
 
         if is_collection:
             _teardown(v)
