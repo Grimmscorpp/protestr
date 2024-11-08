@@ -3,5 +3,5 @@ from protestr._specs import (
     choice as choice,
     sample as sample,
     choices as choices,
-    recipe as recipe
+    recipe as recipe,
 )

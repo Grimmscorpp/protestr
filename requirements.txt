@@ -2,3 +2,5 @@ protestr
 ruff
 build
 twine
+docker
+pymongo

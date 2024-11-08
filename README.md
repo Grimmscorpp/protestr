@@ -1,225 +1,331 @@
-# protestr
+# Protestr: Pro Test Fixture Provider
 
 [![PyPI - Version](https://img.shields.io/pypi/v/protestr.svg)](https://pypi.org/project/protestr)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/protestr.svg)](https://pypi.org/project/protestr)
 
 -----
 
-Test like a pro with Protestr — the state-of-the-art test fixture
-configurator for Python, written in Python, tested with Protestr itself!
+Protestr is a simple, powerful Python library that generates versatile
+[fixtures](#specs-and-fixtures) based on **your rules.** It's designed to
+maximize focus on acts and assertions by handling the complexities of fixture
+management. Its intuitive [API](#documentation) lets you:
 
-## Table of Contents
+- **Re-run tests**  
+  Provide dynamic fixtures using dependency injection, repeating a test for different
+  scenarios instead of duplicating it with hardly any change.
 
-1. [TL;DR](#tldr)
-1. [Rationale](#rationale)
-1. [Getting Started](#getting-started)
-   1. [Installation](#installation)
-   1. [Defining Specs](#defining-specs)
-   1. [Composing Specs](#composing-specs)
-   1. [Ensuring Teardown](#ensuring-teardown)
-1. [Documentation](#documentation)
-1. [Working Example](#working-example)
-1. [License](#license)
+- **Ensure teardown**  
+  Have your defined cleanup logic run consistently after every test run.
 
-## TL;DR
+- **Use anywhere**  
+  Integrate seamlessly with all popular Python testing frameworks, such as `unittest`,
+  `pytest`, and `nose2`, facing zero disruption to your existing testing practices.
+
+The examples in this doc have been carefully crafted to help you master its concepts and
+get the best out of it.
+
+> [!NOTE]
+> Protestr was tested with Protestr.
+
+## Next Up
+
+- [Quick Demo](#quick-demo)
+- [Getting Started](#getting-started)
+  - [Installation](#installation)
+  - [Specs and Fixtures](#specs-and-fixtures)
+  - [Creating Specs](#creating-specs)
+  - [Ensuring Teardown](#ensuring-teardown)
+- [Documentation](#documentation)
+  - [`protestr`](#protestr)
+  - [`protestr.specs`](#protestrspecs)
+- [License](#license)
+
+## Quick Demo
+
+The test below **won't run** because the test runner can't provide `users` and `mongo`.
 
 ```python
-class TestFactorial(unittest.TestCase):
-    @provide(n=9, expected=362880)
-    @provide(n=5, expected=120)
-    @provide(n=1)
-    @provide(n=0, expected=1)
-    def test_factorial_valid_number(self, n, expected):
-        self.assertEqual(factorial(n), expected)
+import unittest
+from unittest.mock import patch as mock
 
-    @provide(n=1.5, expected="n must be an integer")
-    @provide(n=between(-10000, -1), expected="n must be non-negative")
-    def test_factorial_invalid_number(self, n, expected):
-        try:
-            factorial(n)
-        except Exception as e:
-            message, = e.args
 
-        self.assertEqual(message, expected)
+class TestWithMongo(unittest.TestCase):
+    @mock("examples.lib.os")
+    def test_add_to_users_db(
+        self,   #  ✅  Provided by `unittest`
+        os,     #  ✅  Provided by `mock()`
+        users,  #  ❌  Unexpected param `users`
+        mongo,  #  ❌  Unexpected param `mongo`
+    ):
+        os.environ.__getitem__.return_value = "localhost"
+
+        add_to_users_db(users)
+
+        added = mongo.client.users_db.users.count_documents({})
+        self.assertEqual(added, len(users) if users else 0)
 ```
 
-Also see the [Working Example](#working-example).
+Protestr allows you to **provide fixtures** to generate these parameters elegantly. You
+can also chain multiple fixtures to **repeat the test** for different test cases.
 
-## Rationale
+```python
+...
+from protestr import provide
+from examples.specs import User, MongoDB
 
-A test fixture is any arrangement necessary for running tests,
-consisting of dummies, mocks, stubs, fakes, and even concrete
-implementations. A well-configured fixture leads to a consistent and
-reliable testing environment in contrast to an ill-configured one, which
-is a growing maintenance burden. Good fixtures can support multiple
-tests with modifications, such as a database seeded differently each
-time to test a different operation like insertion or deletion. They are
-also responsible for ensuring the proper disposal of resources without a
-miss, especially across multiple tests and files. Their configuration
-logic does not hijack focus from acts and assertions, and they are
-always reusable with all necessary adjustments. That's where Protestr
-comes in. It offers a declarative syntax for fixture customization to
-make tests concise, expressive, and reusable like never before.
+
+class TestWithMongo(unittest.TestCase):
+    @provide(              #  ▶️  Fixture Ⅰ
+        users=[User] * 3,  #  ✨  Generate 3 test users. Spin up a MongoDB container.
+        mongo=MongoDB,     #  🔌  After each test, disconnect and remove the container.
+    )
+    @provide(users=[])     #  ▶️  Fixture Ⅱ: Patch the above fixture to generate 0 users
+    @provide(users=None)   #  ▶️  Fixture Ⅲ
+    @mock("examples.lib.os")
+    def test_add_to_users_db(self, os, users, mongo):
+        os.environ.__getitem__.return_value = "localhost"
+
+        add_to_users_db(users)
+
+        added = mongo.client.users_db.users.count_documents({})
+        self.assertEqual(added, len(users) if users else 0)
+```
+
+> [!TIP]
+> The top-most `provide()` call must declare all specs. Subsequent ones should specify
+> patches (what changed) from the previous test case.
+
+In the example above, `User` and `MongoDB` are user-defined **specs**—the blueprints for
+generating test data.
+
+Protestr offers some great specs in [`protestr.specs`](#protestrspecs) and makes it
+*incredibly* easy to define new ones (explained in "[Creating Specs](#creating-specs)").
+
+```python
+from protestr.specs import between
+
+
+@provide(id=between(1, 99), name=str, password=str)
+class User:
+    def __init__(self, id, name, password):
+        self.id = id
+        self.name = name
+        self.password = password
+
+
+class MongoDB:
+    def __init__(self):
+        self.container = docker.from_env().containers.run(
+            "mongo", detach=True, ports={27017: 27017}
+        )
+        self.client = pymongo.MongoClient("localhost", 27017)
+
+    def __teardown__(self):      #  ♻️  After each test:
+        self.client.close()      #  🔌  Disconnect the container
+        self.container.stop()    #  🛑  Stop the container
+        self.container.remove()  #  🧹  Remove the container
+```
+
+Find the complete example in [examples/](examples/).
 
 ## Getting Started
 
 ### Installation
 
-Protestr is available as
-[`protestr`](https://pypi.org/project/protestr/) on PyPI and can be
-installed with:
+Install [`protestr`](https://pypi.org/project/protestr/) from PyPI:
 
 ```shell
 pip install protestr
 ```
 
-### Defining Specs
+### Specs and Fixtures
 
-A fixture is technically a set of specifications (specs) "provided" to a
-function to resolve into actual data. The specs — usually functions —
-describe how different parts of the fixture form. Protestr offers a few
-built-in specs in `protestr.specs`, but you may need more. So, let's
-define an example geo-coordinate spec to start with. A valid
-geo-coordinate consists of a latitude between [-90, 90], a longitude
-between [-180, 180], and an altitude — something like:
+Specs are blueprints for generating test data. A fixture is a combination of specs
+provided to a class/function—usually a test method—using `provide()`.
+
+Specs are **resolved** by Protestr to generate usable data. There are three types of
+specs:
+
+1. **Python primitives:** `int`, `float`, `complex`, `bool`, or `str`.
+
+1. **Classes and functions that are callable without args.**  
+   If a constructor or a function contains required parameters, it can be transformed
+   into a spec by auto-providing those parameters using `provide()` (explained in
+   "[Creating Specs](#creating-specs)").
+
+1. **Tuples, lists, sets, or dictionaries of specs** in any configuration, such as a
+   list of lists of specs.
+
+Specs are resolved in two ways:
+
+1. **By resolving**
+
+   ```pycon
+   >>> from protestr import resolve
+   >>> from protestr.specs import choice
+   >>> bits = [choice(0, 1)] * 8
+   >>> resolve(bits)
+   [1, 0, 0, 1, 1, 0, 1, 0]
+   ```
+
+1. **By calling/resolving a *spec-provided* class/function**
+   ```pycon
+   >>> from protestr import provide
+   >>> @provide(where=choice("home", "work", "vacation"))
+   ... def test(where):
+   ...     return where
+   ...
+   >>> test()
+   'vacation'
+   >>> resolve(test)
+   'home'
+   ```
+
+The resolution of specs is **recursive**. If a spec produces another spec, Protestr will
+resolve that spec, and so on.
 
 ```python
 from protestr import provide
-from protestr.specs import between
 
-@provide(
-    lat=between(-90.0, 90.0),
-    lon=between(-180.0, 180.0),
-    alt=float
-)
-def geo_coord(lat, lon, alt):
-    return lat, lon, alt
+
+@provide(x=int, y=int)
+def point(x, y):
+    return x, y
+
+
+def triangle():
+    return [point] * 3
+
+
+print(resolve(triangle))
+# [(971, 704), (268, 581), (484, 548)]
 ```
 
-Intuitive, isn't it? Now, you can "resolve" (generate) geo-coordinates
-whenever you need to in the following ways:
+> [!TIP]
+> A spec-provided class/function itself becomes a spec and can be resolved recursively.
+>
+> ```python
+> >>> @provide(n=int)
+> ... def f(n):
+> ...     def g():
+> ...         return n
+> ...     return g
+> ...
+> >>> resolve(f)
+> 784
+> ``````
 
-1. Call without args:
+Protestr simplifies spec creation so that you can create custom specs effortlessly for
+*your* testing requirements.
 
-   ```pycon
-   >>> geo_coord()
-   (-28.56218898364334, 74.83481448106508, 103.16808817617861)
-   ```
+### Creating Specs
 
-   Why invent args when Protestr can provide them?
+Creating a spec usually takes two steps:
 
-1. Call with overridden specs:
-
-   ```pycon
-   >>> geo_coord(
-   ...     lat=choice("equator", "north pole", "south pole"),
-   ...     alt=int
-   ... )
-   ('north pole', -107.37336459941672, 581)
-   ```
-
-   Here, `lat` and `alt` have been overridden by passing `choice()` (a
-   built-in spec) and `int`. Specs can also be composed of other specs
-   (see [Composing Specs](#composing-specs)).
-
-1. Resolve with `resolve`:
-
-   ```
-   >>> from protestr import resolve
-   >>> resolve(geo_coord)
-   (-68.79360870922969, 8.200171266070214, 691.5305890425291)
-
-   >>> resolve(2*[geo_coord])
-   [(41.98113033422453, 24.72261644345585, 115.79597793585394),
-    (84.72658072806291, 84.71585789666494, 731.1552031682041)]
-   ```
-
-   `resolve` also works with other types, as mentioned in the
-   [Documentation](#documentation).
-
-1. Provide with `provide()`:
+1. **Write a class/function**
 
    ```python
-   @provide(two_coords=2*[geo_coord])
-   def line(two_coords):
-       start, end = two_coords
-       return start, end
+   class GeoCoordinate:
+       def __init__(self, latitude, longitude, altitude):
+           self.latitude = latitude
+           self.longitude = longitude
+           self.altitude = altitude
+
+
+   # def geo_coordinate(latitude, longitude, altitude):
+   #     return latitude, longitude, altitude
+   ```
+ 
+1. **Provide specs for required parameters** *if any*
+
+   ```python
+   @provide(
+       latitude=between(-90.0, 90.0),
+       longitude=between(-180.0, 180.0),
+       altitude=float,
+   )
+   class GeoCoordinate:
+       def __init__(self, latitude, longitude, altitude):
+           self.latitude = latitude
+           self.longitude = longitude
+           self.altitude = altitude
+
+
+   # @provide(
+   #     latitude=between(-90.0, 90.0),
+   #     longitude=between(-180.0, 180.0),
+   #     altitude=float,
+   # )
+   # def geo_coordinate(latitude, longitude, altitude):
+   #     return latitude, longitude, altitude
    ```
 
-   `provide()` can be applied to the same function multiple times to
-   repeat it with different values. It can also be used alongside other
-   decorators, such as `patch()`. More in the
-   [Documentation](#documentation).
-
-### Composing Specs
-
-A spec can be composed of other specs at any level:
+Thus, our new spec is prime and ready!
 
 ```pycon
->>> geo_coord(
-...     lat=recipe(
-...         choice(
-...             choice("north pole", "90"),
-...             choice("equator", "0"),
-...             choice("south pole", "-90")
-...         ),
-...         then=str.upper
-...     )
-... )
-('SOUTH POLE', 156.88642301107768, 984.6386910178064)
+>>> resolve(GeoCoordinate).altitude
+247.70713408051304
+>>> GeoCoordinate().altitude
+826.6117116092906
+>>> GeoCoordinate(altitude=int).altitude
+299
 ```
 
-> [!NOTE]
->
-> **Composing specs works as long as they are passed intact.**
->
-> To clarify, here's an *incorrect version* of the example right above:
->
-> ```pycon
-> >>> geo_coord(
-> ...     lat=str(                            # ❌
-> ...         choice(                         # This won't work since the
-> ...             choice("north pole", "90"), # composed choice(...) specs
-> ...             choice("equator", "0"),     # are consumed by str()
-> ...             choice("south pole", "-90") # before being passed to
-> ...         )                               # geo_coord (through lat),
-> ...     ).upper()                           # hence they aren't intact.
-> ... )
-> ('<FUNCTION CHOICE.<LOCALS>.<LAMBDA> AT 0X00000261A74A2320>', -72.90254553301114, 444.88184046168556)
-> ```
+```python
+import unittest
+from protestr import provide
+
+
+class TestLocations(unittest.TestCase):
+
+    @provide(locs=[GeoCoordinate] * 100)
+
+    def test_locations(self, locs):
+
+        self.assertEqual(100, len(locs))
+
+        for loc in locs:
+            self.assertTrue(hasattr(loc, "latitude"))
+            self.assertTrue(hasattr(loc, "longitude"))
+            self.assertTrue(hasattr(loc, "altitude"))
+
+
+if __name__ == "__main__":
+    unittest.main()
+```
+
+Find more sophisticated usages in the [Documentation](#documentation).
 
 ### Ensuring Teardown
 
-Good fixture design demands remembering to dispose of resources at the
-end of tests. Protestr takes care of it out of the box with the
-`__teardown__` function. Whenever a `provide()`-applied function returns
-or terminates abnormally, it looks for `__teardown__` in each (resolved)
-object it provided and invokes it on the object if found. So, all you
-need to do is define `__teardown__` once in a class, and it will be
+Good fixture design demands remembering to dispose of resources at the end of tests.
+Protestr takes care of it out of the box with the `__teardown__` function. Whenever a
+`provide()`-applied function returns or terminates abnormally, it looks for
+`__teardown__` in each (resolved) object it provided and invokes it on the object if
+found. So, all you need to do is define `__teardown__` once in a class, and it will be
 called every time you provide one.
 
 ```python
-class UsersDB:
-    def __init__(self, users):
-        self.users = users
-
-    def insert(self, user):
-        self.users.append(user)
+class MongoDB:
+    def __init__(self):
+        self.container = docker.from_env().containers.run(
+            "mongo", detach=True, ports={27017: 27017}
+        )
+        self.client = pymongo.MongoClient("localhost", 27017)
 
     def __teardown__(self):
-        self.users = []
+        self.client.close()
+        self.container.stop()
+        self.container.remove()
 ```
 
 ## Documentation
 
-$\large \color{gray}@protestr.\color{black}\textnormal{provide(**specs)}$
+### `protestr`
 
-Provide resolved specs to a function.
+$\large\textcolor{gray}{@protestr.}\textbf{provide(**specs)}$
 
-The specs are provided automatically from keyword args in `provide()` to
-the matching parameters of the function when called with those args
-omitted. When specified as keyword args, they override the original
-specs.
+Transform a class/function to auto-supply args when invoked.
 
 ```python
 @provide(
@@ -238,342 +344,194 @@ def password(uppercase, lowercase, digit, chars):
 def credentials(username, password):
     return username, password
 ```
+
+The specs are provided implicitly from keyword args in `provide()` to the matching
+parameters of the function when called with those args omitted.
+
 ```pycon
 >>> credentials()
 ('cgbqkmsehf', 'Pr8LOipCBKCBkAxbbKykppKkALxykKLOiKpiy')
 ```
+
+When specified as keyword args, they override the original specs.
+
 ```pycon
 >>> credentials(username="johndoe")
 ('johndoe', 'En2HivppppimmFaFHpEeEEEExEamp')
 ```
 
-If `provide()` is applied multiple times, any call to the function
-repeats successively to match that number, and teardowns are performed
-at the end of each invocation (see
-[Ensuring Teardown](#ensuring-teardown)). The execution of the
-decorators occurs in the usual Pythonic order, i.e. bottom-up. The first
-(i.e. the bottom) one must provide all required specs. The subsequent
-ones may omit some or all specs, in which case they carry over from the
-previous call. The function returns the result of the last call.
+If `provide()` is applied multiple times, the function runs as many times (when
+invoked), and teardowns are performed at the end of each invocation (see
+[Ensuring Teardown](#ensuring-teardown)). This trait can be leveraged to re-run tests
+for different test cases.
 
 ```python
-@provide(
-    password=password # from the previous example
-    # No need to repeat username here
-)
-@provide(
-    password=None,
-    username=choices(ascii_lowercase, k=between(4, 12))
-)
-def credentials(username, password):
-    print(f"username: {username}")
-    print(f"password: {password}")
-    return username, password
+class TestFactorial(unittest.TestCase):
+    @provide(n=0, expected=1)
+    @provide(n=1)
+    @provide(n=5, expected=120)
+    def test_factorial_valid_number(self, n, expected):
+        self.assertEqual(expected, factorial(n))
+
+    @provide(n=float, expected="n must be a whole number")
+    @provide(n=between(-1000, -1), expected="n must be >= 0")
+    def test_factorial_invalid_number(self, n, expected):
+        try:
+            factorial(n)
+        except Exception as e:
+            (message,) = e.args
+
+        self.assertEqual(expected, message)
 ```
-```pycon
->>> credentials()
-username: vxqoogtgr
-password: None
-username: sbtft
-password: Ax4LzILzILZIZLpIpzIzLpzILLZIpLL
-('sbtft', 'Ax4LzILzILZIZLpIpzIzLpzILLZIpLL')
-```
-
-`provide()` can also be used alongside other decorators, such as
-`patch()`:
-
-```python
-import unittest
-from unittest.mock import patch
-
-class TestPatch(unittest.TestCase):
-    # this test runs twice
-    @provide(intgr=between(-1, -10))
-    @provide(intgr=int)
-    @patch('module.ClassName2')
-    @patch('module.ClassName1')
-    def test_patch(self, MockClass1, MockClass2, intgr):
-        module.ClassName1()
-        module.ClassName2()
-        self.assertIs(MockClass1, module.ClassName1)
-        self.assertIs(MockClass2, module.ClassName2)
-        self.assertTrue(MockClass1.called)
-        self.assertTrue(MockClass2.called)
-        self.assertIsInstance(intgr, int)
-```
-
-> [!NOTE]
-> The patches in the parameters are in the reverse order as in the list
-> of decorators, in the usual Pythonic order. That's how `patch()`
-> works. See [unittest.mock - Quick Guide](https://docs.python.org/3/library/unittest.mock.html#quick-guide).
 
 ##
 
-$\large \color{gray}protestr.\color{black}\textnormal{resolve(spec)}$
+$\large\textcolor{gray}{protestr.}\textbf{resolve(spec)}$
 
 Resolve a spec.
 
-The spec can be `int`, `float`, `complex`, `float`, `str`, a tuple, a
-list, a set, a dictionary, or anything callable without args.
+Specs can be any of the following types:
+
+1. **Python primitives:** `int`, `float`, `complex`, `bool`, or `str`.
+
+1. **Classes and functions that are callable without args.**  
+   If a constructor or a function contains required parameters, it can be transformed
+   into a spec by auto-providing those parameters using `provide()`.
+
+1. **Tuples, lists, sets, or dictionaries of specs** in any configuration, such as a
+   list of lists of specs.
 
 ```pycon
 >>> resolve(str)
 'jKKbbyNgzj'
 ```
 ```pycon
->>> resolve({"number": int})
-{'number': 925}
+>>> resolve([bool] * 3)
+[False, False, True]
 ```
 ```pycon
->>> resolve({str: str})
-{'RRAIvpJLKAqpLQNNVNXmExe': 'raaqSzSdfCIYxbIhuTGdxi'}
-```
-```pycon
->>> from random import random
->>> resolve(random)
-0.8177445321472337
+>>> resolve({"name": str})
+{'name': 'raaqSzSdfCIYxbIhuTGdxi'}
 ```
 ```pycon
 >>> class Foo:
 ...     def __init__(self):
-...         self.message = "Foo instantiated"
+...         self.who = "I'm Foo"
 ...
->>> resolve(Foo).message
-'Foo instantiated'
+>>> resolve(Foo).who
+"I'm Foo"
 ```
 
 ##
 
-$\large \color{gray}protestr.specs.\color{black}\textnormal{between(x, y)}$
+### `protestr.specs`
 
-Return a spec to choose a number between `x` and `y`.
+$\large\textcolor{gray}{protestr.specs.}\textbf{between(x, y)}$
 
-`x` and `y` must be specs that evaluate to numbers. If both `x` and `y`
-evaluate to integers, the resulting number is also an integer.
+Return a spec representing a number between `x` and `y`.
+
+`x` and `y` must be specs that evaluate to numbers. If both `x` and `y` evaluate to
+integers, the resulting number is also an integer.
 
 ```pycon
->>> between(10, -10)()
+>>> resolve(between(10, -10))
 3
 ```
 ```pycon
->>> between(-10, 10.0)()
+>>> resolve(between(-10, 10.0))
 -4.475185425413375
 ```
 ```pycon
->>> between(int, int)()
+>>> resolve(between(int, int))
 452
 ```
 
 ##
 
-$\large \color{gray}protestr.specs.\color{black}\textnormal{choice(*elems)}$
+$\large\textcolor{gray}{protestr.specs.}\textbf{choice(*elems)}$
 
-Return a spec to choose a member from `elems`.
+Return a spec representing a member of `elems`.
 
 ```pycon
 >>> colors = ["red", "green", "blue"]
->>> choice(colors)()
+>>> resolve(choice(colors))
 'green'
 ```
 ```pycon
->>> choice(str)() # generate an str and choose a char from it
+>>> resolve(choice(str)) # a char from a generated str
 'T'
 ```
 ```pycon
->>> choice(str, str, str)() # generate 3 strs and choose one of them
+>>> resolve(choice(str, str, str)) # an str from three generated str objects
 'NOBuybxrf'
 ```
 
 ##
 
-$\large \color{gray}protestr.specs.\color{black}\textnormal{choices(*elems, k)}$
+$\large\textcolor{gray}{protestr.specs.}\textbf{choices(*elems, k)}$
 
-Returns a spec to choose `k` members from `elems` with replacement.
+Return a spec representing `k` members chosen from `elems` with replacement.
 
 `k` must be a spec that evaluates to some natural number.
 
 ```pycon
->>> choices(["red", "green", "blue"], k=5)()
+>>> resolve(choices(["red", "green", "blue"], k=5))
 ['blue', 'red', 'green', 'blue', 'green']
 ```
 ```pycon
->>> choices("red", "green", "blue", k=5)()
+>>> resolve(choices("red", "green", "blue", k=5))
 ('red', 'blue', 'red', 'blue', 'green')
 ```
 ```pycon
->>> choices(ascii_letters, k=10)()
+>>> resolve(choices(ascii_letters, k=10))
 'OLDpaXOGGj'
 ```
 
 ##
 
-$\large \color{gray}protestr.specs.\color{black}\textnormal{sample(*elems, k)}$
+$\large\textcolor{gray}{protestr.specs.}\textbf{sample(*elems, k)}$
 
-Return a spec to choose `k` members from `elems` without replacement.
+Return a spec representing `k` members chosen from `elems` without replacement.
 
 `k` must be a spec that evaluates to some natural number.
 
 ```pycon
 >>> colors = ["red", "green", "blue"]
->>> sample(colors, k=2)()
+>>> resolve(sample(colors, k=2))
 ['blue', 'green']
 ```
 ```pycon
->>> sample("red", "green", "blue", k=3)()
+>>> resolve(sample("red", "green", "blue", k=3))
 ('red', 'blue', 'green')
 ```
 ```pycon
->>> sample(ascii_letters, k=10)()
+>>> resolve(sample(ascii_letters, k=10))
 'tkExshCbTi'
 ```
 ```pycon
->>> sample([int] * 3, k=between(2, 3))() # 2–3 out of 3 integers
+>>> resolve(sample([int] * 3, k=between(2, 3))) # generate 3, pick 2, for demo only
 [497, 246]
 ```
 
 ##
 
-$\large \color{gray}protestr.specs.\color{black}\textnormal{recipe(*specs, then)}$
+$\large\textcolor{gray}{protestr.specs.}\textbf{recipe(*specs, then)}$
 
-Return a spec to get the result of calling a given function with some
-given specs resolved.
+Return a spec representing the result of calling a given function with some given specs
+resolved.
 
-`then` must be a function. After resolving the given specs, Protestr
-calls the `then` function with the resolved specs. If a single arg is
-given (i.e. one spec or a single collection of specs), it calls `then`
-with the result directly. In case of multiple args, it calls `then` with
-a tuple containing all the results.
-
-> [!TIP]
-> `then` can also be a constructor.
+`then` must be callable with a collection containing the resolved specs.
 
 ```pycon
->>> recipe(
-...     sample(ascii_letters, k=5),
-...     sample(digits, k=5),
-...     then="".join
-... )()
-'yDnjU16430'
-```
-```pycon
->>> recipe(int, then=str)()
-'478'
-```
-```pycon
->>> recipe(str, then=str.upper)()
-'OXMXSJFEBWFBIL'
-```
-```pycon
->>> recipe(str, then=str.encode)()
-b'IHbNrZeSYYLm'
-```
-```pycon
->>> recipe(5, then=lambda i: i**2)()
-25
-```
-
-## Working Example
-
-The complete working example available in
-[tests/examples/](https://github.com/Grimmscorpp/protestr/tree/main/tests/examples)
-should be self-explanatory. If not, please refer to
-[Getting Started](#getting-started) and [Documentation](#documentation)
-to become familiar with a few concepts. Here's an excerpt:
-
-```python
-# tests/examples/test_examples.py
-
-import tests.examples.specs as specs
-...
-...
-
-class TestExamples(unittest.TestCase):
-    ...
-    ...
-
-    @provide(
-        password=recipe(
-            choices(digits, k=5),
-            choices(ascii_uppercase, k=5),
-            then="".join
-        ),
-        expected="Password must contain a lowercase letter"
-    )
-    @provide(
-        password=recipe(
-            choices(digits, k=5),
-            choices(ascii_lowercase, k=5),
-            then="".join
-        ),
-        expected="Password must contain an uppercase letter"
-    )
-    @provide(
-        password=choices(ascii_letters, k=8),
-        expected="Password must contain a number"
-    )
-    @provide(
-        password=choices(str, k=7),
-        expected="Password must be at least 8 chars",
-        db=specs.testdb,
-        user=specs.user
-    )
-    @patch("tests.examples.fakes.os.getenv")
-    def test_insert_user_with_invalid_password(
-        self, getenv, db, user, password, expected
-    ):
-        getenv.side_effect = [8]
-
-        user.password = password
-
-        try:
-            db.insert(user)
-        except Exception as e:
-            message, = e.args
-
-        self.assertEqual(message, expected)
-
-        getenv.assert_called_once_with("MIN_PASSWORD_LEN")
-
-    ...
-    ...
-
-if __name__ == "__main__":
-    unittest.main()
-```
-
-If you're curious, here are the specs we defined for the example:
-
-```python
-# tests/examples/specs.py
-
-from tests.examples.fakes import User, UsersDB
-...
-...
-
-@provide(
-    digit=choice(digits),                 # password to contain a
-    uppercase=choice(ascii_uppercase),    # number, an uppercase and a
-    lowercase=choice(ascii_lowercase),    # lowercase letter, and be
-    chars=choices(str, k=between(5, 100)) # 8–15 characters long
-)
-def password(uppercase, lowercase, digit, chars):
-    return "".join((uppercase, lowercase, digit, chars))
-
-
-@provide(
-    id=str,
-    firstname=choice("John", "Jane", "Orange"),
-    lastname=choice("Smith", "Doe", "Carrot"),
-    username=choices(ascii_lowercase, k=between(5, 10)),
-    password=password
-)
-def user(id, firstname, lastname, username, password):
-    return User(id, firstname, lastname, username, password)
-
-
-@provide(users=3*[user])
-def testdb(users):
-    return UsersDB(users)
+>>> from string import ascii_letters, digits
+>>> resolve(
+...     recipe(
+...         sample(ascii_letters, k=5),
+...         sample(digits, k=5),
+...         then="-".join,
+...     )
+... )
+'JzRYQ-51428'
 ```
 
 ## License

@@ -1,6 +1,4 @@
-from random import (
-    randint, uniform, choice as randchoice, choices as randchoices
-)
+from random import randint, uniform, choice as randchoice, choices as randchoices
 from string import ascii_letters
 
 
@@ -12,10 +10,7 @@ def resolve(spec):
         return uniform(0, 1000)
 
     if spec is complex:
-        return complex(
-            real=uniform(-1000, 1000),
-            imag=uniform(-1000, 1000)
-        )
+        return complex(real=uniform(-1000, 1000), imag=uniform(-1000, 1000))
 
     if spec is bool:
         return randchoice((True, False))
@@ -36,6 +31,6 @@ def resolve(spec):
         return {resolve(k): resolve(v) for k, v in spec.items()}
 
     if callable(spec):
-        return spec()
+        return resolve(spec())
 
     return spec
