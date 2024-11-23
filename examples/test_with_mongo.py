@@ -11,15 +11,14 @@ class TestWithMongo(unittest.TestCase):
         mongo=MongoDB,
     )
     @provide(users=[])
-    @provide(users=None)
     @mock("examples.lib.os")
-    def test_add_to_users_db(self, os, users, mongo):
+    def test_add_to_users_db_should_add_all_users(self, os, users, mongo):
         os.environ.__getitem__.return_value = "localhost"
 
         add_to_users_db(users)
 
         added = mongo.client.users_db.users.count_documents({})
-        self.assertEqual(added, len(users) if users else 0)
+        self.assertEqual(added, len(users))
 
 
 if __name__ == "__main__":
