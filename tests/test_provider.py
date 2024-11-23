@@ -3,159 +3,95 @@ from unittest.mock import patch, call
 from protestr import provide
 
 
-class Tearable:
-    def __init__(self):
-        self.torndown = False
-
-    def __teardown__(self):
-        self.torndown = True
-
-
 class TestProvider(unittest.TestCase):
     @patch("protestr.resolve")
-    def test_provide(self, resolve):
-        resolved_tearables = [Tearable(), Tearable(), Tearable()]
+    def test_provide_should_return_the_last_result(self, resolve):
+        calls = 0
 
-        resolved_tearable_lists = [
-            [Tearable(), Tearable()],
-            [Tearable(), Tearable()],
-            [Tearable(), Tearable(), Tearable()],
-        ]
+        @provide()
+        @provide()
+        def fn():
+            nonlocal calls
+            calls += 1
+            return calls
 
-        resolved_values = ["string1", "string2", 1]
+        self.assertEqual(2, fn())
 
-        resolved_value_lists = [
-            ["string3", "string4"],
-            ["string5", "string6"],
-            ["string7", "string8", "string9"],
-        ]
+    @patch("protestr.resolve")
+    def test_provide_should_inject_keyword_specs(self, resolve):
+        resolve.side_effect = lambda x: x
 
-        resolved_overridden_tearable_lists = [[Tearable()], [Tearable()], [Tearable()]]
+        @provide(0, x=1)
+        def fn(x):
+            return x
 
-        resolved_additional_tearable_lists = [[Tearable()], [Tearable()], [Tearable()]]
+        self.assertEqual(1, fn())
+        self.assertEqual(resolve.mock_calls, [call(0), call(1)])
 
-        resolve.side_effect = [
-            "literal",
-            resolved_tearables[0],
-            resolved_tearable_lists[0],
-            resolved_values[0],
-            resolved_value_lists[0],
-            resolved_overridden_tearable_lists[0],
-            resolved_additional_tearable_lists[0],
-            "literal",
-            resolved_tearables[1],
-            resolved_tearable_lists[1],
-            resolved_values[1],
-            resolved_value_lists[1],
-            resolved_overridden_tearable_lists[1],
-            resolved_additional_tearable_lists[1],
-            "another literal",
-            resolved_tearables[2],
-            resolved_tearable_lists[2],
-            resolved_values[2],
-            resolved_value_lists[2],
-            resolved_overridden_tearable_lists[2],
-            resolved_additional_tearable_lists[2],
-        ]
-
-        ignored = Tearable()
-
-        @provide(
-            literal="literal",
-            tearable=Tearable,
-            tearables=2 * [Tearable],
-            spec=str,
-            specs=2 * [str],
-            to_override=ignored,
-        )
-        @provide(to_override=ignored)
-        @provide(
-            literal="another literal",
-            tearable=Tearable,
-            tearables=3 * [Tearable],
-            spec=int,
-            specs=3 * [str],
-            to_override=ignored,
-        )
-        def provided(*args, **kwds):
-            return args, kwds
-
-        def untouched():
+    @patch("protestr.resolve")
+    def test_provide_should_patch_the_first_fixture(self, resolve):
+        @provide(spec=1)
+        @provide(spec=2)
+        @provide()
+        def fn():
             pass
 
-        (arg,), kwds = provided(
-            untouched, to_override=[Tearable], additional_kwd=[Tearable]
-        )
+        fn()
 
-        self.assertEqual(
-            resolve.mock_calls,
-            [
-                call("literal"),
-                call(Tearable),
-                call(2 * [Tearable]),
-                call(str),
-                call(2 * [str]),
-                call([Tearable]),
-                call([Tearable]),
-                call("literal"),
-                call(Tearable),
-                call(2 * [Tearable]),
-                call(str),
-                call(2 * [str]),
-                call([Tearable]),
-                call([Tearable]),
-                call("another literal"),
-                call(Tearable),
-                call(3 * [Tearable]),
-                call(int),
-                call(3 * [str]),
-                call([Tearable]),
-                call([Tearable]),
-            ],
-        )
+        self.assertEqual(resolve.mock_calls, [call(1), call(2), call(1)])
 
-        self.assertEqual(arg, untouched)
+    @patch("protestr.resolve")
+    def test_provide_should_tear_down(self, resolve):
+        class Resource:
+            def __init__(self):
+                self.torndown = False
 
-        self.assertEqual(
-            [*kwds],
-            [
-                "literal",
-                "tearable",
-                "tearables",
-                "spec",
-                "specs",
-                "to_override",
-                "additional_kwd",
-            ],
-        )
+            def __teardown__(self):
+                self.torndown = True
 
-        self.assertEqual(kwds["literal"], "another literal")
+        @provide([Resource] * 2)
+        def fn():
+            raise Exception("failure")
 
-        self.assertEqual(kwds["tearable"], resolved_tearables[2])
+        expected_resources = [
+            r1 := Resource(),
+            r2 := Resource(),
+        ]
 
-        self.assertEqual(kwds["tearables"], resolved_tearable_lists[2])
+        resolve.return_value = expected_resources
 
-        self.assertEqual(kwds["spec"], resolved_values[2])
+        try:
+            fn()
+        except Exception as e:
+            (message,) = e.args
+            self.assertEqual(message, "failure")
 
-        self.assertEqual(kwds["specs"], resolved_value_lists[2])
+        self.assertTrue(r1.torndown)
+        self.assertTrue(r2.torndown)
 
-        self.assertEqual(kwds["to_override"], resolved_overridden_tearable_lists[2])
+    @patch("protestr.resolve")
+    def test_provide_should_allow_overriding_specs(self, resolve):
+        @provide(x=0)
+        @provide(x=1)
+        def fn(x):
+            pass
 
-        self.assertEqual(kwds["additional_kwd"], resolved_additional_tearable_lists[2])
+        fn()
+        fn(x=2)
 
-        self.assertTrue(all(x.torndown for x in resolved_tearables))
+        self.assertEqual(resolve.mock_calls, [call(0), call(1), call(2), call(2)])
 
-        self.assertTrue(all(x.torndown for li in resolved_tearable_lists for x in li))
+    @patch("protestr.resolve")
+    def test_provide_should_not_resolve_other_params(self, resolve):
+        @provide(x=0)
+        @provide(x=1)
+        def fn(x, y=2):
+            pass
 
-        self.assertTrue(
-            all(x.torndown for li in resolved_overridden_tearable_lists for x in li)
-        )
+        fn()
+        fn(y=2)
 
-        self.assertTrue(
-            all(x.torndown for li in resolved_additional_tearable_lists for x in li)
-        )
-
-        self.assertFalse(ignored.torndown)
+        self.assertEqual(resolve.mock_calls, [call(0), call(1), call(0), call(1)])
 
 
 if __name__ == "__main__":

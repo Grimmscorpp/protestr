@@ -5,14 +5,16 @@
 
 -----
 
-Protestr is a simple, powerful Python library that generates versatile
-[fixtures](#specs-and-fixtures) based on **your rules.** It's designed to
-maximize focus on acts and assertions by handling the complexities of fixture
-management. Its intuitive [API](#documentation) lets you:
+Protestr is a simple, powerful [fixture](#specs-and-fixtures) provider for Python tests.
+Whether writing unit tests, integration tests, or anything in between, Protestr's
+intuitive [API](#documentation) lets you generate versatile fixtures for your test cases
+and inject them as dependencies on demand. It's designed to maximize focus on acts and
+assertions by simplifying the complexities of fixture management. Its declarative syntax
+allows you to:
 
 - **Re-run tests**  
-  Provide dynamic fixtures using dependency injection, repeating a test for different
-  scenarios instead of duplicating it with hardly any change.
+  Provide dynamic test dependencies, inject on demand, and re-run a test for different
+  scenarios instead of duplicating it with little change.
 
 - **Ensure teardown**  
   Have your defined cleanup logic run consistently after every test run.
@@ -22,27 +24,29 @@ management. Its intuitive [API](#documentation) lets you:
   `pytest`, and `nose2`, facing zero disruption to your existing testing practices.
 
 The examples in this doc have been carefully crafted to help you master its concepts and
-get the best out of it.
+get the most out of it.
 
 > [!NOTE]
 > Protestr was tested with Protestr.
 
 ## Next Up
 
-- [Quick Demo](#quick-demo)
+- [Quick Examples](#quick-examples)
 - [Getting Started](#getting-started)
   - [Installation](#installation)
   - [Specs and Fixtures](#specs-and-fixtures)
   - [Creating Specs](#creating-specs)
+  - [Using Specs](#using-specs)
   - [Ensuring Teardown](#ensuring-teardown)
 - [Documentation](#documentation)
   - [`protestr`](#protestr)
   - [`protestr.specs`](#protestrspecs)
 - [License](#license)
 
-## Quick Demo
+## Quick Examples
 
-The test below **won't run** because the test runner can't provide `users` and `mongo`.
+This test expects a MongoDB container and some test users, which the test framework
+can't provide out of the box.
 
 ```python
 import unittest
@@ -51,7 +55,7 @@ from unittest.mock import patch as mock
 
 class TestWithMongo(unittest.TestCase):
     @mock("examples.lib.os")
-    def test_add_to_users_db(
+    def test_add_to_users_db_should_add_all_users(
         self,   #  ✅  Provided by `unittest`
         os,     #  ✅  Provided by `mock()`
         users,  #  ❌  Unexpected param `users`
@@ -62,11 +66,12 @@ class TestWithMongo(unittest.TestCase):
         add_to_users_db(users)
 
         added = mongo.client.users_db.users.count_documents({})
-        self.assertEqual(added, len(users) if users else 0)
+        self.assertEqual(added, len(users))
 ```
 
-Protestr allows you to **provide fixtures** to generate these parameters elegantly. You
-can also chain multiple fixtures to **repeat the test** for different test cases.
+With Protestr, you can define a *fixture* to generate and inject these dependencies
+elegantly. You can also provide multiple fixtures to *repeat* the test for different
+scenarios.
 
 ```python
 ...
@@ -79,27 +84,56 @@ class TestWithMongo(unittest.TestCase):
         users=[User] * 3,  #  ✨  Generate 3 test users. Spin up a MongoDB container.
         mongo=MongoDB,     #  🔌  After each test, disconnect and remove the container.
     )
-    @provide(users=[])     #  ▶️  Fixture Ⅱ: Patch the above fixture to generate 0 users
-    @provide(users=None)   #  ▶️  Fixture Ⅲ
+    @provide(users=[])     #  ▶️  Fixture Ⅱ: Patch the first fixture.
     @mock("examples.lib.os")
-    def test_add_to_users_db(self, os, users, mongo):
+    def test_add_to_users_db_should_add_all_users(self, os, users, mongo):
         os.environ.__getitem__.return_value = "localhost"
 
         add_to_users_db(users)
 
         added = mongo.client.users_db.users.count_documents({})
-        self.assertEqual(added, len(users) if users else 0)
+        self.assertEqual(added, len(users))
 ```
 
-> [!TIP]
-> The top-most `provide()` call must declare all specs. Subsequent ones should specify
-> patches (what changed) from the previous test case.
+Here, `User` and `MongoDB` are *specs* for generating test data/infrastructure.
 
-In the example above, `User` and `MongoDB` are user-defined **specs**—the blueprints for
-generating test data.
+> [!NOTE]
+> When multiple `provide()` decorators are chained, their order of execution is **top to
+> bottom.** The first one must specify all specs in the fixture, whereas others only
+> need to provide patches of the *first* fixture.
+
+Protestr uses specs supplied in `provide()` to generate test data/infrastructure. When
+specs are specified as *keyword* args in `provide()`, they are also injected into the
+target (method/class/spec) through matching parameters, if any. Keyword specs can also
+be patched in chained `provide()` calls, as shown above and overridden altogether
+(explained in "[Using Specs](#using-specs)"). On the other hand, non-keyword specs are
+useful for generating indirect test dependencies, such as containers running in the
+background.
+
+```python
+class TestWithRedis(unittest.TestCase):
+    @provide(
+        Redis,                #  ✨  Spin up a Redis container in the background.
+        response={str: str},
+    )
+    @provide(response=None)   #  ✨  Recreate the container in another scenario
+    def test_cached_should_cache_fn(self, response):
+        costly_computation = MagicMock()
+
+        @cached
+        def fn():
+            costly_computation()
+            return response
+
+        self.assertEqual(response, fn())
+        self.assertEqual(response, fn())
+
+        costly_computation.assert_called_once()
+```
 
 Protestr offers some great specs in [`protestr.specs`](#protestrspecs) and makes it
-*incredibly* easy to define new ones (explained in "[Creating Specs](#creating-specs)").
+*incredibly* easy to define new ones (detailed in "[Creating Specs](#creating-specs)").
+Following are the definitions of the specs used above.
 
 ```python
 from protestr.specs import between
@@ -120,13 +154,27 @@ class MongoDB:
         )
         self.client = pymongo.MongoClient("localhost", 27017)
 
-    def __teardown__(self):      #  ♻️  After each test:
-        self.client.close()      #  🔌  Disconnect the container
-        self.container.stop()    #  🛑  Stop the container
-        self.container.remove()  #  🧹  Remove the container
+    def __teardown__(self):      #  ♻️  Ensure teardown after each test.
+        self.client.close()
+        self.container.stop()
+        self.container.remove()
+
+
+class Redis:
+    def __init__(self):
+        self.container = docker.from_env().containers.run(
+            "redis:8.0-M02", detach=True, ports={6379: 6379}
+        )
+
+        # wait for the port
+        time.sleep(0.1)
+
+    def __teardown__(self):      #  ♻️  Ensure teardown after each test.
+        self.container.stop()
+        self.container.remove()
 ```
 
-Find the complete example in [examples/](examples/).
+See also: [examples/](examples/).
 
 ## Getting Started
 
@@ -140,11 +188,11 @@ pip install protestr
 
 ### Specs and Fixtures
 
-Specs are blueprints for generating test data. A fixture is a combination of specs
-provided to a class/function—usually a test method—using `provide()`.
+Specs are blueprints for generating test data/infrastructure. A fixture is a combination
+of specs provided to a class/function—usually a test method—using `provide()`.
 
-Specs are **resolved** by Protestr to generate usable data. There are three types of
-specs:
+Specs are *resolved* by Protestr to generate usable values and entities. There are three
+types of specs:
 
 1. **Python primitives:** `int`, `float`, `complex`, `bool`, or `str`.
 
@@ -170,7 +218,6 @@ Specs are resolved in two ways:
 
 1. **By calling/resolving a *spec-provided* class/function**
    ```pycon
-   >>> from protestr import provide
    >>> @provide(where=choice("home", "work", "vacation"))
    ... def test(where):
    ...     return where
@@ -181,13 +228,10 @@ Specs are resolved in two ways:
    'home'
    ```
 
-The resolution of specs is **recursive**. If a spec produces another spec, Protestr will
+The resolution of specs is *recursive*. If a spec produces another spec, Protestr will
 resolve that spec, and so on.
 
 ```python
-from protestr import provide
-
-
 @provide(x=int, y=int)
 def point(x, y):
     return x, y
@@ -236,7 +280,7 @@ Creating a spec usually takes two steps:
    #     return latitude, longitude, altitude
    ```
  
-1. **Provide specs for required parameters** *if any*
+1. **Provide specs for required parameters,** *if any*
 
    ```python
    @provide(
@@ -260,39 +304,52 @@ Creating a spec usually takes two steps:
    #     return latitude, longitude, altitude
    ```
 
-Thus, our new spec is prime and ready!
+Thus, our new spec is ready for use like any other spec.
 
-```pycon
->>> resolve(GeoCoordinate).altitude
-247.70713408051304
->>> GeoCoordinate().altitude
-826.6117116092906
->>> GeoCoordinate(altitude=int).altitude
-299
-```
+### Using Specs
 
-```python
-import unittest
-from protestr import provide
+Specs can be used in the following ways.
 
+- **Resolve**
 
-class TestLocations(unittest.TestCase):
+  ```pycon
+  >>> resolve(GeoCoordinate).altitude
+  247.70713408051304
+  >>> GeoCoordinate().altitude
+  826.6117116092906
+  ```
 
-    @provide(locs=[GeoCoordinate] * 100)
+- **Override**
 
-    def test_locations(self, locs):
+  ```pycon
+  >>> coord = GeoCoordinate(altitude=int)  #  Override the `altitude` spec.
+  >>> coord.altitude
+  299
+  ```
 
-        self.assertEqual(100, len(locs))
+- **Provide**
 
-        for loc in locs:
-            self.assertTrue(hasattr(loc, "latitude"))
-            self.assertTrue(hasattr(loc, "longitude"))
-            self.assertTrue(hasattr(loc, "altitude"))
-
-
-if __name__ == "__main__":
-    unittest.main()
-```
+  ```python
+  import unittest
+  from protestr import provide
+  
+  
+  class TestLocations(unittest.TestCase):
+  
+      @provide(locs=[GeoCoordinate] * 100)  #  Provide 💯 of them.
+      def test_locations(self, locs):
+  
+          self.assertEqual(100, len(locs))
+  
+          for loc in locs:
+              self.assertTrue(hasattr(loc, "latitude"))
+              self.assertTrue(hasattr(loc, "longitude"))
+              self.assertTrue(hasattr(loc, "altitude"))
+  
+  
+  if __name__ == "__main__":
+      unittest.main()
+  ```
 
 Find more sophisticated usages in the [Documentation](#documentation).
 
@@ -308,10 +365,7 @@ called every time you provide one.
 ```python
 class MongoDB:
     def __init__(self):
-        self.container = docker.from_env().containers.run(
-            "mongo", detach=True, ports={27017: 27017}
-        )
-        self.client = pymongo.MongoClient("localhost", 27017)
+        ...
 
     def __teardown__(self):
         self.client.close()
@@ -323,59 +377,60 @@ class MongoDB:
 
 ### `protestr`
 
-$\large\textcolor{gray}{@protestr.}\textbf{provide(**specs)}$
+$\large\textcolor{gray}{@protestr.}\textbf{provide(\*specs, \*\*kwspecs)}$
 
-Transform a class/function to auto-supply args when invoked.
+Transform a class/function to automatically generate, inject, and teardown test
+data/infrastructure.
 
 ```python
 @provide(
-    uppercase=choice(ascii_uppercase),
-    lowercase=choice(ascii_lowercase),
-    digit=choice(digits),
-    chars=choices(str, k=between(5, 100))
+    keyword1=spec1,
+    keyword2=spec2,
+    keyword3=spec3,
+    ...
 )
-def password(uppercase, lowercase, digit, chars):
-    return "".join((uppercase, lowercase, digit, chars))
-
-@provide(
-    password=password,
-    username=choices(ascii_lowercase, k=between(4, 12))
-)
-def credentials(username, password):
-    return username, password
+@provide(...)
+@provide(...)
+...
+def fn(foo, bar, whatever, keyword1, keyword2, keyword3, ...):
+    ...
 ```
 
-The specs are provided implicitly from keyword args in `provide()` to the matching
-parameters of the function when called with those args omitted.
+Keywords are optional. When specs are provided as keyword arguments, the generated
+objects are injected into the target through matching parameters, if any. They can also
+be patched in chained `provide()` calls and overridden altogether.
 
-```pycon
->>> credentials()
-('cgbqkmsehf', 'Pr8LOipCBKCBkAxbbKykppKkALxykKLOiKpiy')
-```
-
-When specified as keyword args, they override the original specs.
-
-```pycon
->>> credentials(username="johndoe")
-('johndoe', 'En2HivppppimmFaFHpEeEEEExEamp')
-```
-
-If `provide()` is applied multiple times, the function runs as many times (when
-invoked), and teardowns are performed at the end of each invocation (see
-[Ensuring Teardown](#ensuring-teardown)). This trait can be leveraged to re-run tests
-for different test cases.
+When multiple `provide()` decorators are chained, they are executed from **top to
+bottom.** The first one must specify all specs in the fixture, and others only need to
+patch the *first* one. Teardowns are performed consistently after every test (see
+"[Ensuring Teardown](#ensuring-teardown)").
 
 ```python
 class TestFactorial(unittest.TestCase):
-    @provide(n=0, expected=1)
-    @provide(n=1)
-    @provide(n=5, expected=120)
-    def test_factorial_valid_number(self, n, expected):
+    @provide(
+        n=0,
+        expected=1,
+    )
+    @provide(
+        n=1,
+        # expected=1 implicitly provided from the first fixture
+    )
+    @provide(
+        n=5,
+        expected=120,
+    )
+    def test_factorial_should_return_for_valid_numbers(self, n, expected):
         self.assertEqual(expected, factorial(n))
 
-    @provide(n=float, expected="n must be a whole number")
-    @provide(n=between(-1000, -1), expected="n must be >= 0")
-    def test_factorial_invalid_number(self, n, expected):
+    @provide(
+        n=float,
+        expected="n must be a whole number",
+    )
+    @provide(
+        n=between(-1000, -1),
+        expected="n must be >= 0",
+    )
+    def test_factorial_should_raise_for_invalid_number(self, n, expected):
         try:
             factorial(n)
         except Exception as e:
@@ -536,5 +591,5 @@ resolved.
 
 ## License
 
-`protestr` is distributed under the terms of the
-[MIT](https://spdx.org/licenses/MIT.html) license.
+Protestr is distributed under the terms of the [MIT](https://spdx.org/licenses/MIT.html)
+license.

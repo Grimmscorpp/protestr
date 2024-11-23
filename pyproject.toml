@@ -9,7 +9,9 @@ description = "Pro Test Fixture Provider"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
-keywords = ["test", "fixture", "spec", "specification", "teardown"]
+keywords = [
+  "test", "fixture", "spec", "specification", "teardown", "dependency", "inject"
+]
 authors = [
   { name = "Ikram Khan", email = "ikramkhanfahim@gmail.com" },
 ]

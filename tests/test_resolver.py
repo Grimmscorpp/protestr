@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import Mock, patch, call
+from unittest.mock import MagicMock, patch, call
 from string import ascii_letters
 from protestr import provide, resolve
 from protestr.specs import between, choice, choices
@@ -8,7 +8,7 @@ from protestr.specs import between, choice, choices
 class TestResolver(unittest.TestCase):
     @provide(x=between(0, 1000))
     @patch("protestr._resolver.randint")
-    def test_resolve_int(self, randint, x):
+    def test_resolve_should_generate_int(self, randint, x):
         randint.return_value = x
 
         self.assertEqual(resolve(int), x)
@@ -17,7 +17,7 @@ class TestResolver(unittest.TestCase):
 
     @provide(x=between(0.0, 1000))
     @patch("protestr._resolver.uniform")
-    def test_resolve_float(self, uniform, x):
+    def test_resolve_should_generate_float(self, uniform, x):
         uniform.return_value = x
 
         self.assertEqual(resolve(float), x)
@@ -26,7 +26,7 @@ class TestResolver(unittest.TestCase):
 
     @provide(x=between(-1000.0, 1000), y=between(-1000.0, 1000))
     @patch("protestr._resolver.uniform")
-    def test_resolve_complex(self, uniform, x, y):
+    def test_resolve_should_generate_complex(self, uniform, x, y):
         uniform.side_effect = [x, y]
 
         self.assertEqual(resolve(complex), complex(x, y))
@@ -35,7 +35,7 @@ class TestResolver(unittest.TestCase):
 
     @provide(x=choice(True, False))
     @patch("protestr._resolver.randchoice")
-    def test_resolve_bool(self, randchoice, x):
+    def test_resolve_should_generate_bool(self, randchoice, x):
         randchoice.return_value = x
 
         self.assertEqual(resolve(bool), x)
@@ -45,7 +45,7 @@ class TestResolver(unittest.TestCase):
     @provide(x=choices(ascii_letters, k=len(ascii_letters)), k=int)
     @patch("protestr._resolver.randint")
     @patch("protestr._resolver.randchoices")
-    def test_resolve_str(self, randchoices, randint, x, k):
+    def test_resolve_should_generate_str(self, randchoices, randint, x, k):
         randchoices.return_value = [*x]
         randint.return_value = k
 
@@ -55,28 +55,34 @@ class TestResolver(unittest.TestCase):
         randint.assert_called_once_with(1, 50)
 
     @provide(n=between(1, 10), x=int)
-    def test_resolve_tuple(self, n, x):
-        self.assertEqual(resolve(n * tuple([between(x, x)])), n * (x,))
+    def test_resolve_should_resolve_tuple(self, n, x):
+        spec = (between(x, x),) * n
+        self.assertEqual(resolve(spec), (x,) * n)
 
     @provide(n=between(1, 10), x=int)
     def test_resolve_list(self, n, x):
-        self.assertEqual(resolve(n * [between(x, x)]), n * [x])
+        spec = [between(x, x)] * n
+        self.assertEqual(resolve(spec), [x] * n)
 
     @provide(x=int)
-    def test_resolve_set(self, x):
-        self.assertEqual(
-            resolve({between(x, x), between(x + 1, x + 1), between(x + 2, x + 2)}),
-            {x, x + 1, x + 2},
-        )
+    def test_resolve_should_resolve_set(self, x):
+        spec = {between(x, x), between(x + 1, x + 1), between(x + 2, x + 2)}
+        self.assertEqual(resolve(spec), {x, x + 1, x + 2})
 
     @provide(key=int, val=int)
-    def test_resolve_dict(self, key, val):
-        self.assertEqual(resolve({between(key, key): between(val, val)}), {key: val})
+    def test_resolve_should_resolve_dict(self, key, val):
+        spec = {between(key, key): between(val, val)}
+        self.assertEqual(resolve(spec), {key: val})
 
     @provide(x=int)
-    def test_resolve_callable(self, x):
-        inner = Mock(return_value=x)
-        outer = Mock(return_value=inner)
+    def test_resolve_should_call_callable(self, x):
+        fn = MagicMock(return_value=x)
+        self.assertEqual(resolve(fn), x)
+
+    @provide(x=int)
+    def test_resolve_should_resolve_indefinitely(self, x):
+        inner = MagicMock(return_value=x)
+        outer = MagicMock(return_value=inner)
 
         self.assertEqual(resolve(outer), x)
 
