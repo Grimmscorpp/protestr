@@ -12,8 +12,12 @@ def provide(**specs):
             for specs in reversed(provided.__specslist__):
                 all_specs |= specs | kwds
 
+                resolved = {}
+
                 try:
-                    resolved = {k: resolve(s) for k, s in all_specs.items()}
+                    for k, s in all_specs.items():
+                        resolved[k] = resolve(s)
+
                     result = func(*args, **resolved)
                 finally:
                     _teardown(resolved.values())
