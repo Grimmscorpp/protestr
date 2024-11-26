@@ -5,7 +5,7 @@
 
 -----
 
-Protestr is a simple, powerful [fixtures](#specs-and-fixtures) provider for Python
+Protestr is a simple, powerful [fixture](#specs-and-fixtures) provider for Python
 tests. Whether you are writing unit tests, integration tests, or anything in between,
 Protestr's intuitive [API](#documentation) let's you create versatile fixtures for your
 tests based on **your rules.** It's designed to maximize focus on acts and assertions by
