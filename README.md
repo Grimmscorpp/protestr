@@ -92,7 +92,10 @@ class TestWithMongo(unittest.TestCase):
         self.assertEqual(added, len(users) if users else 0)
 ```
 
-> [!TIP]
+> [!IMPORTANT]
+> The order of execution of `provide()` decorators is top-down instead of Python's usual
+> bottom-up.
+>
 > The top-most `provide()` call must declare all specs. Subsequent ones should specify
 > patches (what changed) from the previous test case.
 
