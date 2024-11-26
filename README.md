@@ -93,8 +93,7 @@ class TestWithMongo(unittest.TestCase):
 ```
 
 > [!IMPORTANT]
-> The order of execution of `provide()` decorators is top-down instead of Python's usual
-> bottom-up.
+> When chained, the order of execution of `provide()` decorators is **top-down.**
 >
 > The top-most `provide()` call must declare all specs. Subsequent ones should specify
 > patches (what changed) from the previous test case.
