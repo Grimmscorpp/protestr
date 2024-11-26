@@ -5,21 +5,25 @@
 
 -----
 
-Protestr is a simple, powerful Python library that generates versatile
-[fixtures](#specs-and-fixtures) based on **your rules.** It's designed to
-maximize focus on acts and assertions by handling the complexities of fixture
-management. Its intuitive [API](#documentation) lets you:
+Protestr is a simple, powerful [fixtures](#specs-and-fixtures) provider for Python
+tests. Whether you are writing unit tests, integration tests, or anything in between,
+Protestr's intuitive [API](#documentation) let's you create versatile fixtures for your
+tests based on **your rules.** It's designed to maximize focus on acts and assertions by
+handling the complexities of fixture management. With its declarative syntax you can:
 
-- **Re-run tests**  
-  Provide dynamic fixtures using dependency injection, repeating a test for different
-  scenarios instead of duplicating it with hardly any change.
+- **Re-run tests**
 
-- **Ensure teardown**  
+  Provide dynamic fixtures using **dependency injection,** repeating a test for
+  different scenarios instead of duplicating it with hardly any change.
+
+- **Ensure teardown**
+
   Have your defined cleanup logic run consistently after every test run.
 
-- **Use anywhere**  
+- **Use anywhere**
+
   Integrate seamlessly with all popular Python testing frameworks, such as `unittest`,
-  `pytest`, and `nose2`, facing zero disruption to your existing testing practices.
+  `pytest`, and `nose2`, facing **zero disruption** to your existing testing practices.
 
 The examples in this doc have been carefully crafted to help you master its concepts and
 get the best out of it.
