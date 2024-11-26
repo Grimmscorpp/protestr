@@ -11,17 +11,14 @@ intuitive [API](#documentation) lets you inject well-managed fixtures into you
 cases. Designed to maximize your focus on acts and assertions, Protestr's declarative
 syntax allows you to:
 
-- **Re-run tests**
-
+- **Re-run tests**  
   Provide dynamic fixtures using **dependency injection,** repeating a test for
   different scenarios instead of duplicating it with hardly any change.
 
-- **Ensure teardown**
-
+- **Ensure teardown**  
   Have your defined cleanup logic run consistently after every test run.
 
-- **Use anywhere**
-
+- **Use anywhere**  
   Integrate seamlessly with all popular Python testing frameworks, such as `unittest`,
   `pytest`, and `nose2`, facing **zero disruption** to your existing testing practices.
 
