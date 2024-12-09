@@ -104,19 +104,20 @@ Here, `User` and `MongoDB` are *specs* for generating test data/infrastructure.
 
 Protestr uses specs supplied in `provide()` to generate test data/infrastructure. When
 specs are specified as *keyword* args in `provide()`, they are also injected into the
-target (method/class/spec) through matching parameters, if any. Keyword specs can also
-be patched in chained `provide()` calls, as shown above and overridden altogether
-(explained in "[Using Specs](#using-specs)"). On the other hand, non-keyword specs are
-useful for generating indirect test dependencies, such as containers running in the
-background.
+target (method/class/spec) through matching parameters, if any.
+
+Keyword specs can also be patched in chained `provide()` calls (as shown above) or
+overridden altogether (explained in "[Using Specs](#using-specs)"). On the other hand,
+non-keyword specs are useful for generating indirect test dependencies, such as
+containers running in the *background.*
 
 ```python
 class TestWithRedis(unittest.TestCase):
     @provide(
-        Redis,                #  ✨  Spin up a Redis container in the background.
+        Redis,                #  🥷  Spin up a Redis container in the background.
         response={str: str},
     )
-    @provide(response=None)   #  ✨  Recreate the container in another scenario
+    @provide(response=None)   #  🥷  Recreate the container in another scenario.
     def test_cached_should_cache_fn(self, response):
         costly_computation = MagicMock()
 
@@ -132,7 +133,7 @@ class TestWithRedis(unittest.TestCase):
 ```
 
 Protestr offers some great specs in [`protestr.specs`](#protestrspecs) and makes it
-*incredibly* easy to define new ones (detailed in "[Creating Specs](#creating-specs)").
+*incredibly easy* to define new ones (detailed in "[Creating Specs](#creating-specs)").
 Following are the definitions of the specs used above.
 
 ```python
@@ -355,12 +356,11 @@ Find more sophisticated usages in the [Documentation](#documentation).
 
 ### Ensuring Teardown
 
-Good fixture design demands remembering to dispose of resources at the end of tests.
-Protestr takes care of it out of the box with the `__teardown__` function. Whenever a
-`provide()`-applied function returns or terminates abnormally, it looks for
-`__teardown__` in each (resolved) object it provided and invokes it on the object if
-found. So, all you need to do is define `__teardown__` once in a class, and it will be
-called every time you provide one.
+Protestr ensures teardown of resources out of the box, so you don't need to remember to
+do it. Every time a `provide()`-applied function terminates—naturally or
+abnormally—Protestr checks each spec in the fixture to see if it contains a
+`__teardown__` function. If found, the function is called, thus tearing down the
+generated object based on *your* cleanup rules without fail.
 
 ```python
 class MongoDB:
@@ -398,7 +398,7 @@ def fn(foo, bar, whatever, keyword1, keyword2, keyword3, ...):
 
 Keywords are optional. When specs are provided as keyword arguments, the generated
 objects are injected into the target through matching parameters, if any. They can also
-be patched in chained `provide()` calls and overridden altogether.
+be patched in chained `provide()` calls or overridden altogether.
 
 When multiple `provide()` decorators are chained, they are executed from **top to
 bottom.** The first one must specify all specs in the fixture, and others only need to
