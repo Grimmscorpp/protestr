@@ -53,10 +53,12 @@ class TestProvider(unittest.TestCase):
         def fn():
             raise Exception("failure")
 
-        expected_resources = [
-            r1 := Resource(),
-            r2 := Resource(),
-        ]
+        expected_resources = {
+            "resources": [
+                r1 := Resource(),
+                r2 := Resource(),
+            ]
+        }
 
         resolve.return_value = expected_resources
 

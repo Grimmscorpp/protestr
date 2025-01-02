@@ -53,12 +53,10 @@ def _combine(specs, kwspecs):
 
 def _teardown(values):
     for v in values:
-        is_collection = (
-            isinstance(v, tuple) or isinstance(v, list) or isinstance(v, set)
-        )
-
-        if is_collection:
+        if isinstance(v, tuple) or isinstance(v, list) or isinstance(v, set):
             _teardown(v)
+        elif isinstance(v, dict):
+            _teardown(v.values())
 
         if hasattr(v, "__teardown__"):
             v.__teardown__()
