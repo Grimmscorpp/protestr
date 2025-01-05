@@ -2,8 +2,7 @@
 
 [![PyPI - Version](https://img.shields.io/pypi/v/protestr.svg)](https://pypi.org/project/protestr)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/protestr.svg)](https://pypi.org/project/protestr)
-
------
+![test](https://github.com/Grimmscorpp/protestr/actions/workflows/lint-and-test.yml/badge.svg)
 
 Protestr is a simple, powerful [fixture](#specs-and-fixtures) provider for Python tests.
 Whether writing unit tests, integration tests, or anything in between, Protestr's
